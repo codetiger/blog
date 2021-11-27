@@ -1,5 +1,5 @@
 User-agent: *
-Sitemap: https://codetiger.github.io/sitemap.xml
+Sitemap: https://codetiger.github.io/blog/sitemap.xml
 Disallow: /ghost/
 Disallow: /p/
 Disallow: /email/
