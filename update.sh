@@ -1,2 +1,2 @@
 rm -rf static
-gssg --url https://codetiger.github.io/blog/static
+gssg --domain https://codetiger.github.io --url https://codetiger.github.io --dest docs
