@@ -1,2 +1,4 @@
 rm -rf docs
-gssg --domain https://codetiger.github.io --url https://codetiger.github.io --dest docs
+mkdir docs
+cd docs
+gssg --url https://codetiger.github.io --dest .
