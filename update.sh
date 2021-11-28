@@ -1,4 +1,2 @@
 rm -rf docs
-mkdir docs
-cd docs
-gssg --url https://codetiger.github.io/blog/ --dest .
+gssg --url https://codetiger.github.io --dest docs --subDir blog
