@@ -1,2 +1,2 @@
 # My blog
-This is an attempt by me to manage a maintanence free blog site built using Ghost and hosted in Gihub Pages by generating static site using gssg tool. 
+This is my attempt to manage a maintanence-free blog built using Ghost software and hosted in Github Pages by generating static site using gssg tool. 
