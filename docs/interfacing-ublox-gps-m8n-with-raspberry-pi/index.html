@@ -2,7 +2,7 @@
 <html lang="en" class="dark-mode">
 <head>
 
-    <title>Sending large data like images over Lora</title>
+    <title>Interfacing Ublox GPS M8N with Raspberry Pi</title>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="HandheldFriendly" content="True" />
@@ -17,31 +17,31 @@
 
     <link rel="stylesheet" type="text/css" href="./../assets/built/screen.css?v=de44c31250" />
 
-    <link rel="canonical" href="https://codetiger.github.io/blog/sending-large-data-like-images-over-lora/" />
+    <link rel="canonical" href="https://codetiger.github.io/blog/interfacing-ublox-gps-m8n-with-raspberry-pi/" />
     <meta name="referrer" content="no-referrer-when-downgrade" />
-    <link rel="amphtml" href="https://codetiger.github.io/blog/sending-large-data-like-images-over-lora/amp/" />
+    <link rel="amphtml" href="https://codetiger.github.io/blog/interfacing-ublox-gps-m8n-with-raspberry-pi/amp/" />
     
     <meta property="og:site_name" content="Small World" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Sending large data like images over Lora" />
-    <meta property="og:description" content="Got obsessed with the Lora module E32-868T30D after playing with it for couple of months now. To be honest, this seemed to me like a life saver for hobbyists to start on RF. My previous attempts failed with I had to add RF to my projects. This time it was" />
-    <meta property="og:url" content="https://codetiger.github.io/blog/sending-large-data-like-images-over-lora/" />
+    <meta property="og:title" content="Interfacing Ublox GPS M8N with Raspberry Pi" />
+    <meta property="og:description" content="Ublox GPS M8N module support UART communication and its fairly integrate with your Raspberry Pi. Just connecting to power and Rx wires will allow you to read the GPS NMEA messages. However the module is much more capable than just sending messages in raw text format. The module supports lot" />
+    <meta property="og:url" content="https://codetiger.github.io/blog/interfacing-ublox-gps-m8n-with-raspberry-pi/" />
     <meta property="og:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg" />
-    <meta property="article:published_time" content="2021-12-06T13:13:23.000Z" />
-    <meta property="article:modified_time" content="2021-12-06T13:13:23.000Z" />
-    <meta property="article:tag" content="lora" />
+    <meta property="article:published_time" content="2021-12-08T04:51:30.000Z" />
+    <meta property="article:modified_time" content="2021-12-08T04:51:30.000Z" />
     <meta property="article:tag" content="raspberry pi" />
+    <meta property="article:tag" content="GPS" />
     <meta property="article:tag" content="electronics" />
     
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Sending large data like images over Lora" />
-    <meta name="twitter:description" content="Got obsessed with the Lora module E32-868T30D after playing with it for couple of months now. To be honest, this seemed to me like a life saver for hobbyists to start on RF. My previous attempts failed with I had to add RF to my projects. This time it was" />
-    <meta name="twitter:url" content="https://codetiger.github.io/blog/sending-large-data-like-images-over-lora/" />
+    <meta name="twitter:title" content="Interfacing Ublox GPS M8N with Raspberry Pi" />
+    <meta name="twitter:description" content="Ublox GPS M8N module support UART communication and its fairly integrate with your Raspberry Pi. Just connecting to power and Rx wires will allow you to read the GPS NMEA messages. However the module is much more capable than just sending messages in raw text format. The module supports lot" />
+    <meta name="twitter:url" content="https://codetiger.github.io/blog/interfacing-ublox-gps-m8n-with-raspberry-pi/" />
     <meta name="twitter:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg" />
     <meta name="twitter:label1" content="Written by" />
     <meta name="twitter:data1" content="Harishankar" />
     <meta name="twitter:label2" content="Filed under" />
-    <meta name="twitter:data2" content="lora, raspberry pi, electronics" />
+    <meta name="twitter:data2" content="raspberry pi, GPS, electronics" />
     <meta name="twitter:site" content="@codetiger" />
     <meta name="twitter:creator" content="@codetiger" />
     <meta property="og:image:width" content="2000" />
@@ -76,12 +76,12 @@
             "https://twitter.com/codetiger"
         ]
     },
-    "headline": "Sending large data like images over Lora",
-    "url": "https://codetiger.github.io/blog/sending-large-data-like-images-over-lora/",
-    "datePublished": "2021-12-06T13:13:23.000Z",
-    "dateModified": "2021-12-06T13:13:23.000Z",
-    "keywords": "lora, raspberry pi, electronics",
-    "description": "Got obsessed with the Lora module E32-868T30D after playing with it for couple\nof months now. To be honest, this seemed to me like a life saver for hobbyists\nto start on RF. My previous attempts failed with I had to add RF to my projects.\nThis time it was mostly a plug and play with simple configurations. \n\nSpeed: \nI read everywhere saying Lora is for smaller data packets and are not meant for\nlarger data like images. There were some calculations showing Lora would take\nhours or days to transfer",
+    "headline": "Interfacing Ublox GPS M8N with Raspberry Pi",
+    "url": "https://codetiger.github.io/blog/interfacing-ublox-gps-m8n-with-raspberry-pi/",
+    "datePublished": "2021-12-08T04:51:30.000Z",
+    "dateModified": "2021-12-08T04:51:30.000Z",
+    "keywords": "raspberry pi, GPS, electronics",
+    "description": "Ublox GPS M8N module support UART communication and its fairly integrate with\nyour Raspberry Pi. Just connecting to power and Rx wires will allow you to read\nthe GPS NMEA messages. However the module is much more capable than just sending\nmessages in raw text format. The module supports lot of configurations and\nbinary mode which is much easier to handle. \n\nWiring:\nIn my case, I was using Tx/Rx wires for another module so I ran out of UART\nports in my Raspberry Pi Zero. As the Zero has only one ",
     "mainEntityOfPage": {
         "@type": "WebPage",
         "@id": "https://codetiger.github.io/blog/"
@@ -103,7 +103,7 @@
 </style><style>:root {--ghost-accent-color: #FF1A75;}</style>
 
 </head>
-<body class="post-template tag-lora tag-raspberry-pi tag-electronics">
+<body class="post-template tag-raspberry-pi tag-gps tag-electronics">
 <div class="viewport">
 
     <header id="gh-head" class="gh-head has-cover">
@@ -143,15 +143,15 @@
 
 
 <main id="site-main" class="site-main">
-    <article class="article post tag-lora tag-raspberry-pi tag-electronics no-image ">
+    <article class="article post tag-raspberry-pi tag-gps tag-electronics no-image ">
 
         <header class="article-header gh-canvas">
 
             <section class="article-tag">
-                <a href="https://codetiger.github.io/blog/tag/lora/">lora</a>
+                <a href="https://codetiger.github.io/blog/tag/raspberry-pi/">raspberry pi</a>
             </section>
 
-            <h1 class="article-title">Sending large data like images over Lora</h1>
+            <h1 class="article-title">Interfacing Ublox GPS M8N with Raspberry Pi</h1>
 
 
             <div class="article-byline">
@@ -166,7 +166,7 @@
                     <div class="article-byline-meta">
                         <h4 class="author-name"><a href="./../author/codetiger/">Harishankar</a></h4>
                         <div class="byline-meta-content">
-                            <time class="byline-meta-date" datetime="2021-12-06">Dec 6, 2021</time>
+                            <time class="byline-meta-date" datetime="2021-12-08">Dec 8, 2021</time>
                             <span class="byline-reading-time"><span class="bull">&bull;</span> 2 min read</span>
                         </div>
                     </div>
@@ -176,7 +176,92 @@
         </header>
 
         <section class="gh-content gh-canvas">
-            <p>Got obsessed with the Lora module E32-868T30D after playing with it for couple of months now. To be honest, this seemed to me like a life saver for hobbyists to start on RF. My previous attempts failed with I had to add RF to my projects. This time it was mostly a plug and play with simple configurations. </p><h3 id="speed">Speed: </h3><p>I read everywhere saying Lora is for smaller data packets and are not meant for larger data like images. There were some calculations showing Lora would take hours or days to transfer a single image. These are not fully true and are mostly limited to certain providers. In my project I needed a P2P data transfer and it worked just fine. </p><p>Initially I started with transfering 40 bytes of sensor data every 5 seconds which worked just fine. After analysing the logs, I found that the Chip completes the air transmission in few milliseconds and just waits for more data. So I decided to push more data by breaking an image into chunks and rebuilding it on the receiver size. </p><p>An image of size 38KB takes me around 5 mins to transfer with enough delay inbetween to avoid the buffer overflows. There is no easy way to calculate the exact delay needed for each chunk to get transfered, or depending on AUX alone as well did not help my case much. So I've implemented a hybrid aproach that worked for me.</p><figure class="kg-card kg-image-card"><img src="./..//content/images/2021/12/latest-7.jpg" class="kg-image" alt loading="lazy" width="640" height="360" srcset="https://codetiger.github.io/blog/content/images/size/w600/2021/12/latest-7.jpg 600w, https://codetiger.github.io/blog/content/images/2021/12/latest-7.jpg 640w"></figure><h3 id="acknowledgement">Acknowledgement:</h3><p>In my implementation, the Lora class accepts file size of upto few megabytes and internally splits and sends it in chunks. The sender ensures if the chunk was received successfully by marking the chunk after getting an acknowledgement. The reason why AUX alone didn't work for me was, both the transceivers had to send and receive messages and the module didn't support duplex transmission. So a predefined interval of delay helped in my case. Otherwise, the 38KB image can be transferred in less than a minute. </p><h3 id="implementation">Implementation:</h3><p>The source code is available in my <a href="https://github.com/codetiger/rpi-hab/blob/main/lora.py">Github project</a>. The Lora class uses SQLite for keeping track of chunks and acknowledgements. This class is the same as explained in my previous post where I've explained the basics <a href="https://codetiger.github.io/blog/transfer-images-over-lora-e32-module/">integrating E32-868T30D with Raspberry Pi</a></p><p>Using this implementation, I've run the project for couple days in a row and there was no issue in buffer overflow. So this code is tested well but feel free to improve if you can find issues. </p>
+            <p>Ublox GPS M8N module support UART communication and its fairly integrate with your Raspberry Pi. Just connecting to power and Rx wires will allow you to read the GPS NMEA messages. However the module is much more capable than just sending messages in raw text format. The module supports lot of configurations and binary mode which is much easier to handle. </p><h3 id="wiring">Wiring:</h3><p>In my case, I was using Tx/Rx wires for another module so I ran out of UART ports in my Raspberry Pi Zero. As the Zero has only one UART pair and also does not have an inbuilt USB hub, I decided to use the micro USB port and hard wired a USB UART module directly to the Pi Zero board. </p><figure class="kg-card kg-image-card kg-card-hascaption"><img src="./..//content/images/2021/12/ublox-m8n-gps.png" class="kg-image" alt loading="lazy" width="720" height="405" srcset="https://codetiger.github.io/blog/content/images/size/w600/2021/12/ublox-m8n-gps.png 600w, https://codetiger.github.io/blog/content/images/2021/12/ublox-m8n-gps.png 720w" sizes="(min-width: 720px) 720px"><figcaption>Ublox M8N GPS Module wiring with CP2102 and Raspberry Pi&nbsp;</figcaption></figure><h3 id="code">Code:</h3><p>The GPS Class in my project imports the ublox python module which is available <a href="https://github.com/tridge/pyUblox">here</a>. This module allows us to configure to work in binary mode and give use the function to configure frequency of various messages. You can configure dynamic model which is very essential for my project as altitude calculation is more important for my project. </p><!--kg-card-begin: markdown--><pre><code>#!/usr/bin/env python3
+
+import logging, math
+from ublox import *
+from threading import Thread
+
+class GPSModule(Thread):
+    gps = None
+    latitude = 0.0
+    longitude = 0.0
+    altitude = 0.0
+    fix_status = 0
+    satellites = 0
+    healthy = True
+    onHighAltitude = False
+
+    def __init__(self, portname=&quot;/dev/ttyUSB0&quot;, timeout=2, baudrate=9600):
+        logging.getLogger(&quot;HABControl&quot;)
+        logging.info('Initialising GPS Module')
+        try:
+            self.gps = UBlox(port=portname, timeout=timeout, baudrate=baudrate)
+            self.gps.set_binary()
+            self.gps.configure_poll_port()
+            self.gps.configure_solution_rate(rate_ms=1000)
+            self.gps.set_preferred_dynamic_model(DYNAMIC_MODEL_PEDESTRIAN)
+            self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_POSLLH, 1)
+            self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_SOL, 1)
+
+            Thread.__init__(self)
+            self.healthy = True
+            self.start()
+        except Exception as e:
+            logging.error('Unable to initialise GPS: %s' % str(e), exc_info=True)
+            self.gps = None
+            self.healthy = False
+
+    def run(self):
+        while self.healthy:
+            self.readData()
+            time.sleep(1.0)
+
+    def checkPressure(self, pressure):
+        alt = 0.0
+        if pressure is not 0:
+            alt = 44330.0 * (1.0 - math.pow(pressure / 1013.25, 0.1903))
+        self.checkAltitude(alt)
+
+    def checkAltitude(self, altitude):
+        if altitude is not 0:
+            if altitude &gt; 9000 and not self.onHighAltitude:
+                self.onHighAltitude = True
+                self.gps.set_preferred_dynamic_model(DYNAMIC_MODEL_AIRBORNE1G)
+            if self.onHighAltitude and altitude &lt; 8000:
+                self.onHighAltitude = False
+                self.gps.set_preferred_dynamic_model(DYNAMIC_MODEL_PEDESTRIAN)
+
+    def readData(self):
+        try:
+            msg = self.gps.receive_message()
+    
+            if msg is not None:
+                logging.debug(msg)
+                if msg.name() == &quot;NAV_SOL&quot;:
+                    msg.unpack()
+                    self.satellites = msg.numSV
+                    self.fix_status = msg.gpsFix
+                elif msg.name() == &quot;NAV_POSLLH&quot;:
+                    msg.unpack()
+                    self.latitude = msg.Latitude * 1e-7
+                    self.longitude = msg.Longitude * 1e-7
+                    self.altitude = msg.hMSL / 1000.0
+
+                    if self.altitude &lt; 0.0:
+                        self.altitude = 0.0
+        except Exception as e:
+            logging.error(&quot;Unable to read from GPS Chip - %s&quot; % str(e), exc_info=True)
+            self.healthy = False
+
+    def close(self):
+        logging.info(&quot;Closing GPS Module object&quot;)
+        self.healthy = False
+        self.gps.close()
+        self.gps = None
+
+</code></pre>
+<!--kg-card-end: markdown--><p>The python class has been tested for various scenarios for many days continuously. Even the model switching works fine realtime and does not need reset. Please feel free to modify or improve the class for your use case. The entire project source is available at <a href="https://github.com/codetiger/rpi-hab">my github project</a>.</p>
         </section>
 
 
@@ -206,12 +291,12 @@
 
     <div class="post-card-content">
 
-        <a class="post-card-content-link" href="./../interfacing-ublox-gps-m8n-with-raspberry-pi/">
+        <a class="post-card-content-link" href="./../sending-large-data-like-images-over-lora/">
             <header class="post-card-header">
-                <h2 class="post-card-title">Interfacing Ublox GPS M8N with Raspberry Pi</h2>
+                <h2 class="post-card-title">Sending large data like images over Lora</h2>
             </header>
             <div class="post-card-excerpt">
-                <p>Ublox GPS M8N module support UART communication and its fairly integrate with your Raspberry Pi. Just connecting to power and Rx wires will allow you to read the GPS NMEA messages. However the module is much more capable than just sending messages in raw text format. The module supports lot</p>
+                <p>Got obsessed with the Lora module E32-868T30D after playing with it for couple of months now. To be honest, this seemed to me like a life saver for hobbyists to start on RF. My previous attempts failed with I had to add RF to my projects. This time it was</p>
             </div>
         </a>
 
@@ -225,7 +310,7 @@
             </ul>
             <div class="post-card-byline-content">
                 <span><a href="./../author/codetiger/">Harishankar</a></span>
-                <span class="post-card-byline-date"><time datetime="2021-12-08">Dec 8, 2021</time> <span class="bull">&bull;</span> 2 min read</span>
+                <span class="post-card-byline-date"><time datetime="2021-12-06">Dec 6, 2021</time> <span class="bull">&bull;</span> 2 min read</span>
             </div>
         </footer>
 
