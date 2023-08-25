@@ -1,0 +1,14 @@
+.site {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.site-content {
+    flex-grow: 1;
+    padding-top: 60px;
+}
+
+.page-template .site-content {
+    padding-top: 0;
+}

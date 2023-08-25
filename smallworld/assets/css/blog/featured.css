@@ -1,0 +1,30 @@
+.featured-posts {
+    min-height: 400px;
+    margin-top: 64px;
+    margin-bottom: 48px;
+}
+
+.featured-posts .post {
+    display: none;
+    margin-bottom: 0;
+}
+
+.featured-posts.owl-loaded .post {
+    display: block;
+}
+
+.featured-posts .post-header {
+    flex-direction: column;
+}
+
+.featured-posts .post-title {
+    font-size: 2rem;
+    line-height: 1.2;
+}
+
+@media (max-width: 767px) {
+    .featured-posts {
+        margin-top: 24px;
+        margin-bottom: 0;
+    }
+}
