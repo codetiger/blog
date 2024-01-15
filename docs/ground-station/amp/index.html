@@ -1,14 +1,14 @@
-<!DOCTYPE html><html ⚡><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1"><title>RaLiSat-1 Base station system design</title><link rel="canonical" href="https://codetiger.github.io/blog/ground-station/"><meta name="referrer" content="no-referrer-when-downgrade"><meta property="og:site_name" content="Small World"><meta property="og:type" content="article"><meta property="og:title" content="RaLiSat-1 Base station system design"><meta property="og:description" content="For my high altitude balloon project, I am designing a portable base station
-system to recieve the transmission from the payload. 
+<!DOCTYPE html><html ⚡><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1"><title>RaLiSat-1 Base station system design</title><link rel="canonical" href="https://codetiger.github.io/blog/ground-station/"><meta name="referrer" content="no-referrer-when-downgrade"><meta property="og:site_name" content="Small World"><meta property="og:type" content="article"><meta property="og:title" content="RaLiSat-1 Base station system design"><meta property="og:description" content="For my high altitude balloon project, I am designing a portable base station system to recieve the transmission from the payload.
+
 
 Hardware:
-The base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D
-from manufacturer Ebyte. This is very much the same module that I&#x27;ve used in"><meta property="og:url" content="https://codetiger.github.io/blog/ground-station/"><meta property="og:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg"><meta property="article:published_time" content="2021-12-14T11:22:19.000Z"><meta property="article:modified_time" content="2022-05-16T02:14:43.000Z"><meta property="article:tag" content="Near Space"><meta property="article:tag" content="RaLiSat-1"><meta property="article:tag" content="raspberry pi"><meta property="article:tag" content="lora"><meta property="article:tag" content="electronics"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="RaLiSat-1 Base station system design"><meta name="twitter:description" content="For my high altitude balloon project, I am designing a portable base station
-system to recieve the transmission from the payload. 
+
+The base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D from manufacturer Ebyte. This is very much the same module that I&#x27;ve used in"><meta property="og:url" content="https://codetiger.github.io/blog/ground-station/"><meta property="og:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg"><meta property="article:published_time" content="2021-12-14T11:22:19.000Z"><meta property="article:modified_time" content="2022-05-16T02:14:43.000Z"><meta property="article:tag" content="Near Space"><meta property="article:tag" content="RaLiSat-1"><meta property="article:tag" content="raspberry pi"><meta property="article:tag" content="lora"><meta property="article:tag" content="electronics"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="RaLiSat-1 Base station system design"><meta name="twitter:description" content="For my high altitude balloon project, I am designing a portable base station system to recieve the transmission from the payload.
+
 
 Hardware:
-The base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D
-from manufacturer Ebyte. This is very much the same module that I&#x27;ve used in"><meta name="twitter:url" content="https://codetiger.github.io/blog/ground-station/"><meta name="twitter:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg"><meta name="twitter:label1" content="Written by"><meta name="twitter:data1" content="Harishankar"><meta name="twitter:label2" content="Filed under"><meta name="twitter:data2" content="Near Space, RaLiSat-1, raspberry pi, lora, electronics"><meta name="twitter:site" content="@codetiger"><meta name="twitter:creator" content="@codetiger"><meta property="og:image:width" content="2000"><meta property="og:image:height" content="1500"><script type="application/ld+json">{
+
+The base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D from manufacturer Ebyte. This is very much the same module that I&#x27;ve used in"><meta name="twitter:url" content="https://codetiger.github.io/blog/ground-station/"><meta name="twitter:image" content="https://codetiger.github.io/blog/content/images/2021/11/IMG_1667-1.jpeg"><meta name="twitter:label1" content="Written by"><meta name="twitter:data1" content="Harishankar"><meta name="twitter:label2" content="Filed under"><meta name="twitter:data2" content="Near Space, RaLiSat-1, raspberry pi, lora, electronics"><meta name="twitter:site" content="@codetiger"><meta name="twitter:creator" content="@codetiger"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="900"><script type="application/ld+json">{
     "@context": "https://schema.org",
     "@type": "Article",
     "publisher": {
@@ -27,7 +27,7 @@ from manufacturer Ebyte. This is very much the same module that I&#x27;ve used i
         "name": "Harishankar",
         "image": {
             "@type": "ImageObject",
-            "url": "https://codetiger.github.io/blog/content/images/2023/08/harishankar-photo.jpeg",
+            "url": "https://codetiger.github.io/blog/content/images/2024/01/harishankar.jpeg",
             "width": 620,
             "height": 620
         },
@@ -41,9 +41,9 @@ from manufacturer Ebyte. This is very much the same module that I&#x27;ve used i
     "datePublished": "2021-12-14T11:22:19.000Z",
     "dateModified": "2022-05-16T02:14:43.000Z",
     "keywords": "Near Space, RaLiSat-1, raspberry pi, lora, electronics",
-    "description": "For my high altitude balloon project, I am designing a portable base station\nsystem to recieve the transmission from the payload. \n\nHardware:\nThe base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D\nfrom manufacturer Ebyte. This is very much the same module that I&#x27;ve used in the\npayload for transmission. I&#x27;ve also added an active buzzer to sound a beep\nwhenever the system receives location data which is designed to happen every 5\nseconds. The buzzer helped a lot during th",
+    "description": "For my high altitude balloon project, I am designing a portable base station system to recieve the transmission from the payload.\n\n\nHardware:\n\nThe base station is a Raspberry Pi 3B+ based system with Lora module E32-868T30D from manufacturer Ebyte. This is very much the same module that I&#x27;ve used in the payload for transmission. I&#x27;ve also added an active buzzer to sound a beep whenever the system receives location data which is designed to happen every 5 seconds. The buzzer helped a lot during t",
     "mainEntityOfPage": "https://codetiger.github.io/blog/ground-station/"
-}</script><meta name="generator" content="Ghost 5.59"><link rel="alternate" type="application/rss+xml" title="Small World" href="https://codetiger.github.io/blog/rss/"><style amp-custom>*,
+}</script><meta name="generator" content="Ghost 5.75"><link rel="alternate" type="application/rss+xml" title="Small World" href="https://codetiger.github.io/blog/rss/"><style amp-custom>*,
     *::before,
     *::after {
         box-sizing: border-box;

@@ -1,14 +1,8 @@
-<!DOCTYPE html><html ⚡><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1"><title>Remote ePaper display using ESP32</title><link rel="canonical" href="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta name="referrer" content="no-referrer-when-downgrade"><meta property="og:site_name" content="Small World"><meta property="og:type" content="article"><meta property="og:title" content="Remote ePaper display using ESP32"><meta property="og:description" content="I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is
-an expensive eInk display with 1872x1404 pixel resolution that supports 4 bit
-grayscale values. 
+<!DOCTYPE html><html ⚡><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1"><title>Remote ePaper display using ESP32</title><link rel="canonical" href="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta name="referrer" content="no-referrer-when-downgrade"><meta property="og:site_name" content="Small World"><meta property="og:type" content="article"><meta property="og:title" content="Remote ePaper display using ESP32"><meta property="og:description" content="I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is an expensive eInk display with 1872x1404 pixel resolution that supports 4 bit grayscale values.
 
-Objective: Building a photo frame with the content streamed from my home server
-built using a Raspberry Pi. The"><meta property="og:url" content="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta property="og:image" content="https://codetiger.github.io/blog/content/images/2022/01/E695CC21-D1FA-4CEA-865C-77B266A02730_1_105_c.jpeg"><meta property="article:published_time" content="2022-01-29T03:00:10.000Z"><meta property="article:modified_time" content="2022-01-29T03:00:10.000Z"><meta property="article:tag" content="electronics"><meta property="article:tag" content="ESP32"><meta property="article:tag" content="raspberry pi"><meta property="article:tag" content="ePaper"><meta property="article:tag" content="eInk"><meta property="article:tag" content="display"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Remote ePaper display using ESP32"><meta name="twitter:description" content="I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is
-an expensive eInk display with 1872x1404 pixel resolution that supports 4 bit
-grayscale values. 
+Objective: Building a photo frame with the content streamed from my home server built using a Raspberry Pi. The"><meta property="og:url" content="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta property="og:image" content="https://codetiger.github.io/blog/content/images/2022/01/E695CC21-D1FA-4CEA-865C-77B266A02730_1_105_c.jpeg"><meta property="article:published_time" content="2022-01-29T03:00:10.000Z"><meta property="article:modified_time" content="2022-01-29T03:00:10.000Z"><meta property="article:tag" content="electronics"><meta property="article:tag" content="ESP32"><meta property="article:tag" content="raspberry pi"><meta property="article:tag" content="ePaper"><meta property="article:tag" content="eInk"><meta property="article:tag" content="display"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Remote ePaper display using ESP32"><meta name="twitter:description" content="I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is an expensive eInk display with 1872x1404 pixel resolution that supports 4 bit grayscale values.
 
-Objective: Building a photo frame with the content streamed from my home server
-built using a Raspberry Pi. The"><meta name="twitter:url" content="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta name="twitter:image" content="https://codetiger.github.io/blog/content/images/2022/01/E695CC21-D1FA-4CEA-865C-77B266A02730_1_105_c.jpeg"><meta name="twitter:label1" content="Written by"><meta name="twitter:data1" content="Harishankar"><meta name="twitter:label2" content="Filed under"><meta name="twitter:data2" content="electronics, ESP32, raspberry pi, ePaper, eInk, display"><meta name="twitter:site" content="@codetiger"><meta name="twitter:creator" content="@codetiger"><meta property="og:image:width" content="1024"><meta property="og:image:height" content="768"><script type="application/ld+json">{
+Objective: Building a photo frame with the content streamed from my home server built using a Raspberry Pi. The"><meta name="twitter:url" content="https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"><meta name="twitter:image" content="https://codetiger.github.io/blog/content/images/2022/01/E695CC21-D1FA-4CEA-865C-77B266A02730_1_105_c.jpeg"><meta name="twitter:label1" content="Written by"><meta name="twitter:data1" content="Harishankar"><meta name="twitter:label2" content="Filed under"><meta name="twitter:data2" content="electronics, ESP32, raspberry pi, ePaper, eInk, display"><meta name="twitter:site" content="@codetiger"><meta name="twitter:creator" content="@codetiger"><meta property="og:image:width" content="1024"><meta property="og:image:height" content="768"><script type="application/ld+json">{
     "@context": "https://schema.org",
     "@type": "Article",
     "publisher": {
@@ -27,7 +21,7 @@ built using a Raspberry Pi. The"><meta name="twitter:url" content="https://codet
         "name": "Harishankar",
         "image": {
             "@type": "ImageObject",
-            "url": "https://codetiger.github.io/blog/content/images/2023/08/harishankar-photo.jpeg",
+            "url": "https://codetiger.github.io/blog/content/images/2024/01/harishankar.jpeg",
             "width": 620,
             "height": 620
         },
@@ -47,9 +41,9 @@ built using a Raspberry Pi. The"><meta name="twitter:url" content="https://codet
         "height": 768
     },
     "keywords": "electronics, ESP32, raspberry pi, ePaper, eInk, display",
-    "description": "I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is\nan expensive eInk display with 1872x1404 pixel resolution that supports 4 bit\ngrayscale values. \n\nObjective: Building a photo frame with the content streamed from my home server\nbuilt using a Raspberry Pi. The RPi will stream family pics available in the\nstorage and intermittently show home power consumption dashboard on screen. \n\nChallenges: As with any project, this one had very particular challenge of\nkeeping the",
+    "description": "I had a 7.8 inch ePaper display from Waveshare lying around for a while. This is an expensive eInk display with 1872x1404 pixel resolution that supports 4 bit grayscale values.\n\nObjective: Building a photo frame with the content streamed from my home server built using a Raspberry Pi. The RPi will stream family pics available in the storage and intermittently show home power consumption dashboard on screen.\n\nChallenges: As with any project, this one had very particular challenge of keeping the h",
     "mainEntityOfPage": "https://codetiger.github.io/blog/remote-epaper-display-using-esp32/"
-}</script><meta name="generator" content="Ghost 5.59"><link rel="alternate" type="application/rss+xml" title="Small World" href="https://codetiger.github.io/blog/rss/"><style amp-custom>*,
+}</script><meta name="generator" content="Ghost 5.75"><link rel="alternate" type="application/rss+xml" title="Small World" href="https://codetiger.github.io/blog/rss/"><style amp-custom>*,
     *::before,
     *::after {
         box-sizing: border-box;
