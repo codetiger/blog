@@ -1,7 +1,7 @@
 ---
 title: "Complex Gesture Recognition using Kinect"
 date: 2011-09-07T20:26:00.000Z
-slug: "untitled"
+slug: "complex-gesture-recognition-using-kinect"
 tags: ["hacking", "kinect"]
 featureImage: "/blog/assets/images/2023/08/maxresdefault-4.jpg"
 draft: false

@@ -14,6 +14,8 @@ export default defineConfig({
     // redirect values are emitted verbatim (base is not auto-prepended).
     '/rss': '/blog/rss.xml',
     '/sitemap.xml': '/blog/sitemap-index.xml',
+    // Renamed from the slug-less Ghost export ("untitled").
+    '/untitled': '/blog/complex-gesture-recognition-using-kinect',
   },
   markdown: {
     // Semi-dark code blocks that sit nicely on the dark page background.

@@ -1,9 +1,9 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
-// One collection for every article. Migrated posts are plain `.md`;
-// articles that embed interactive components are `.mdx`. Both live here
-// and share the same validated frontmatter shape.
+// One collection for every article. Plain posts are `.md`; articles that
+// embed interactive components are `.mdx`. Both live here and share the same
+// validated frontmatter shape.
 const posts = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/posts' }),
   schema: z.object({
