@@ -12,7 +12,9 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  # Don't cancel an in-progress production deployment; let it finish (GitHub's
+  # recommended setting for Pages). Newer pushes queue instead.
+  cancel-in-progress: false
 
 jobs:
   build:
