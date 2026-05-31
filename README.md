@@ -4,8 +4,7 @@ A pure-markdown, component-capable blog built with [Astro](https://astro.build) 
 deployed to GitHub Pages at <https://codetiger.github.io/blog/>. Migrated from Ghost.
 
 Posts are plain markdown (`.md`); articles that need interactive 3D/canvas use `.mdx`
-and embed components as Astro islands (e.g. the live WebGL raymarcher in
-`interactive-ray-tracing-in-the-browser`).
+and embed components as Astro islands.
 
 ## Project layout
 
@@ -16,7 +15,7 @@ src/
   pages/              routes: index (paginated), [...slug], tag/[tag], author/[author],
                       about-me, 404, rss.xml
   layouts/            BaseLayout (SEO/head/theme), PostLayout
-  components/         PostList, TagList, Pager, Seo, RaytracerCanvas
+  components/         PostList, TagList, Pager, Seo, AuthorCard
   lib/                site.ts (constants), posts.ts, tags.ts
 public/               favicon.png, robots.txt, assets/ (images, cover, author photo)
 scripts/convert.mjs   Ghost-export → markdown converter
@@ -54,9 +53,9 @@ Body in markdown…
 For an interactive article, use `.mdx` and import a component:
 
 ```mdx
-import RaytracerCanvas from '../../components/RaytracerCanvas.astro';
+import MyWidget from '../../components/MyWidget.astro';
 
-Prose… <RaytracerCanvas /> …more prose.
+Prose… <MyWidget /> …more prose.
 ```
 
 Tag pages, the author page, RSS, the sitemap and pagination all update automatically

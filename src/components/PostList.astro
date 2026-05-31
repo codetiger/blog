@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { postHref } from '../lib/posts';
+import { postHref, summarize } from '../lib/posts';
 import TagList from './TagList.astro';
 
 interface Props { posts: CollectionEntry<'posts'>[]; }
@@ -8,28 +8,59 @@ const { posts } = Astro.props;
 const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 ---
 <ul class="post-list">
-  {posts.map((p) => (
-    <li>
-      <a class="post-link" href={postHref(p.data.slug)}>{p.data.title}</a>
-      <div class="meta">
-        <time datetime={p.data.date.toISOString()}>{fmt(p.data.date)}</time>
-        {p.data.tags.length > 0 && <TagList tags={p.data.tags} />}
-      </div>
-      {p.data.excerpt && <p class="excerpt">{p.data.excerpt}</p>}
-    </li>
-  ))}
+  {posts.map((p) => {
+    const summary = p.data.excerpt ?? summarize(p);
+    return (
+      <li class="card">
+        <a class="card-link" href={postHref(p.data.slug)}>
+          {p.data.featureImage && (
+            <div class="thumb">
+              <img src={p.data.featureImage} alt={p.data.title} loading="lazy" />
+            </div>
+          )}
+          <h2 class="title">{p.data.title}</h2>
+        </a>
+        <div class="meta">
+          <time datetime={p.data.date.toISOString()}>{fmt(p.data.date)}</time>
+          {p.data.tags.length > 0 && <TagList tags={p.data.tags} />}
+        </div>
+        {summary && <p class="excerpt">{summary}</p>}
+      </li>
+    );
+  })}
 </ul>
 
 <style>
   .post-list { list-style: none; padding: 0; margin: 0; }
-  .post-list li { padding: 1.5rem 0; border-bottom: 1px solid var(--border); }
-  .post-list li:first-child { padding-top: 0; }
-  .post-list li:last-child { border-bottom: 0; }
-  .post-link { font-size: 1.2rem; font-weight: 600; color: var(--heading); }
-  .post-link:hover { color: var(--accent); text-decoration: none; }
+  .card { padding-bottom: 2.2rem; margin-bottom: 2.2rem; border-bottom: 1px solid var(--border); }
+  .card:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: 0; }
+
+  .card-link { display: block; color: inherit; }
+  .card-link:hover { text-decoration: none; }
+
+  .thumb {
+    margin: 0 0 1rem;
+    border-radius: var(--radius);
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    border: 0; border-radius: 0; margin: 0;
+    transition: transform 0.4s ease;
+  }
+  .card-link:hover .thumb img { transform: scale(1.03); }
+
+  .title { font-size: 1.4rem; margin: 0; color: var(--heading); transition: color 0.15s; }
+  .card-link:hover .title { color: var(--accent); }
+
   .meta {
     display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
-    margin-top: 0.4rem; color: var(--muted); font-size: 0.82rem;
+    margin-top: 0.5rem; color: var(--muted); font-size: 0.82rem;
   }
-  .excerpt { margin: 0.55rem 0 0; color: var(--fg); opacity: 0.82; font-size: 0.96rem; }
+  .excerpt { margin: 0.6rem 0 0; color: var(--fg); opacity: 0.82; font-size: 1rem; line-height: 1.6; }
 </style>
