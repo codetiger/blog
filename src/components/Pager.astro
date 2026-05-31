@@ -1,0 +1,19 @@
+---
+// Pagination nav for list pages. `prev` = newer page, `next` = older page.
+interface Props { prev?: string | null; next?: string | null; }
+const { prev = null, next = null } = Astro.props;
+---
+{(prev || next) && (
+  <nav class="pager">
+    {prev ? <a href={prev}>← Newer</a> : <span />}
+    {next ? <a href={next}>Older →</a> : <span />}
+  </nav>
+)}
+
+<style>
+  .pager {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+    font-size: 0.92rem;
+  }
+</style>

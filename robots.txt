@@ -1,7 +1,0 @@
-User-agent: *
-
-Sitemap: https://codetiger.github.io/blog/sitemap.xml
-Sitemap: https://codetiger.github.io/blog/sitemap-tags.xml
-Sitemap: https://codetiger.github.io/blog/sitemap-pages.xml
-Sitemap: https://codetiger.github.io/blog/sitemap-posts.xml
-Sitemap: https://codetiger.github.io/blog/sitemap-authors.xml

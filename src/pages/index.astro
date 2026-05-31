@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostList from '../components/PostList.astro';
+import Pager from '../components/Pager.astro';
+import { getSortedPosts, homeHref } from '../lib/posts';
+import { SITE } from '../lib/site';
+
+const base = import.meta.env.BASE_URL;
+const all = await getSortedPosts();
+const posts = all.slice(0, SITE.pageSize);
+const totalPages = Math.ceil(all.length / SITE.pageSize);
+const older = totalPages > 1 ? `${base}${base.endsWith('/') ? '' : '/'}page/2/` : null;
+---
+
+<BaseLayout title={`${SITE.title} — ${SITE.tagline}`} description={SITE.description}>
+  <PostList posts={posts} />
+  <Pager next={older} />
+</BaseLayout>

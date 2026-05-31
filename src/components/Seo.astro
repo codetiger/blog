@@ -1,0 +1,62 @@
+---
+import { SITE } from '../lib/site';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  type?: 'website' | 'article';
+  published?: Date;
+}
+const {
+  title,
+  description = SITE.description,
+  image = SITE.defaultImage,
+  type = 'website',
+  published,
+} = Astro.props;
+
+const abs = (p: string) => (p.startsWith('http') ? p : new URL(p, Astro.site).href);
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const ogImage = abs(image);
+
+const jsonLd =
+  type === 'article'
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: title,
+        description,
+        image: ogImage,
+        ...(published ? { datePublished: published.toISOString() } : {}),
+        url: canonical,
+        mainEntityOfPage: canonical,
+        author: { '@type': 'Person', name: SITE.author.name, url: abs(`/blog/author/${SITE.author.slug}/`) },
+        publisher: { '@type': 'Organization', name: SITE.ogSiteName },
+      }
+    : {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: SITE.ogSiteName,
+        description: SITE.description,
+        url: abs('/blog/'),
+      };
+---
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+
+<meta property="og:site_name" content={SITE.ogSiteName} />
+<meta property="og:type" content={type} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={ogImage} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImage} />
+<meta name="twitter:site" content={SITE.twitter} />
+
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

@@ -1,0 +1,72 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import TagList from '../components/TagList.astro';
+import { postHref } from '../lib/posts';
+
+interface NavPost { slug: string; title: string; }
+interface Props {
+  title: string;
+  date: Date;
+  excerpt?: string;
+  tags?: string[];
+  featureImage?: string;
+  newerPost?: NavPost | null;
+  olderPost?: NavPost | null;
+}
+const { title, date, excerpt, tags = [], featureImage, newerPost, olderPost } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const dateStr = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+---
+
+<BaseLayout title={title} description={excerpt} image={featureImage} type="article" published={date}>
+  <article>
+    <h1>{title}</h1>
+    <div class="post-meta">
+      <time datetime={date.toISOString()}>{dateStr}</time>
+      {tags.length > 0 && <TagList tags={tags} />}
+    </div>
+    {featureImage && <img class="feature" src={featureImage} alt={title} />}
+    <div class="post-body">
+      <slot />
+    </div>
+
+    {(newerPost || olderPost) && (
+      <nav class="post-nav">
+        {olderPost ? (
+          <a href={postHref(olderPost.slug)} class="pn">
+            <small>← Older</small><span>{olderPost.title}</span>
+          </a>
+        ) : <span />}
+        {newerPost ? (
+          <a href={postHref(newerPost.slug)} class="pn right">
+            <small>Newer →</small><span>{newerPost.title}</span>
+          </a>
+        ) : <span />}
+      </nav>
+    )}
+
+    <hr />
+    <a class="back" href={base}>← All posts</a>
+  </article>
+</BaseLayout>
+
+<style>
+  h1 { margin-bottom: 0.5rem; }
+  .post-meta {
+    display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+    color: var(--muted); font-size: 0.85rem; margin-bottom: 2rem;
+  }
+  .feature { width: 100%; margin: 0 0 2rem; }
+  .back { font-size: 0.9rem; }
+
+  .post-nav {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+  }
+  .pn { display: flex; flex-direction: column; gap: 0.25rem; color: var(--heading); }
+  .pn.right { text-align: right; }
+  .pn small { color: var(--muted); font-size: 0.78rem; }
+  .pn span { font-weight: 600; font-size: 0.95rem; }
+  .pn:hover { text-decoration: none; }
+  .pn:hover span { color: var(--accent); }
+</style>

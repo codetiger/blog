@@ -1,0 +1,8 @@
+---
+import { tagHref } from '../lib/tags';
+interface Props { tags: string[]; }
+const { tags } = Astro.props;
+---
+<span class="tags">
+  {tags.map((t) => <a class="tag" href={tagHref(t)}>{t}</a>)}
+</span>

@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostList from '../../components/PostList.astro';
+import { getSortedPosts } from '../../lib/posts';
+import { SITE } from '../../lib/site';
+
+export async function getStaticPaths() {
+  const posts = await getSortedPosts();
+  return [{ params: { author: SITE.author.slug }, props: { posts } }];
+}
+
+const { posts } = Astro.props;
+const a = SITE.author;
+---
+
+<BaseLayout title={`${a.name} — ${SITE.title}`} description={a.bio} image={a.image}>
+  <header class="author">
+    <img class="avatar" src={a.image} alt={a.name} width="88" height="88" />
+    <div>
+      <h1>{a.name}</h1>
+      <p class="bio">{a.bio}</p>
+      <ul class="social">
+        {a.links.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
+      </ul>
+    </div>
+  </header>
+  <h2 class="section">Posts</h2>
+  <PostList posts={posts} />
+</BaseLayout>
+
+<style>
+  .author { display: flex; gap: 1.2rem; align-items: flex-start; margin-bottom: 2rem; }
+  .avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+  .author h1 { margin: 0 0 0.4rem; }
+  .bio { margin: 0 0 0.6rem; color: var(--fg); }
+  .social { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; font-size: 0.88rem; }
+  .section { font-size: 1.1rem; margin: 0 0 0.5rem; }
+</style>

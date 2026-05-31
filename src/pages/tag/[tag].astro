@@ -1,0 +1,29 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostList from '../../components/PostList.astro';
+import { getTagMap } from '../../lib/tags';
+import { SITE } from '../../lib/site';
+
+export async function getStaticPaths() {
+  const map = await getTagMap();
+  return [...map.entries()].map(([slug, { name, posts }]) => ({
+    params: { tag: slug },
+    props: { name, posts },
+  }));
+}
+
+const { name, posts } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<BaseLayout title={`${name} — ${SITE.title}`} description={`Posts tagged “${name}” on ${SITE.title}.`}>
+  <p class="crumb"><a href={base}>Home</a> / Tagged</p>
+  <h1>Tagged: {name}</h1>
+  <p class="count">{posts.length} post{posts.length === 1 ? '' : 's'}</p>
+  <PostList posts={posts} />
+</BaseLayout>
+
+<style>
+  .crumb { color: var(--muted); font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .count { color: var(--muted); font-size: 0.85rem; margin-top: -0.4rem; margin-bottom: 1.5rem; }
+</style>

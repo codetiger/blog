@@ -1,0 +1,140 @@
+---
+// A self-contained WebGL raymarcher: a lit sphere on a plane, rendered every
+// frame in a fragment shader. The sliders below drive shader uniforms, so the
+// 3D image updates in realtime. This is an Astro component with a client
+// `<script>` — exactly the "interactive island" pattern future articles use.
+const id = 'rt-' + Math.round(Math.abs(Math.sin(1)) * 1e6).toString(36);
+---
+
+<figure class="rt" data-id={id} style="margin:2rem 0">
+  <canvas id={id} width="720" height="420" style="width:100%;display:block;border-radius:10px;background:#0b0b14;cursor:grab"></canvas>
+  <div class="rt-controls">
+    <label>Light angle<input type="range" min="0" max="6.28" step="0.01" value="0.9" data-u="light" /></label>
+    <label>Sphere radius<input type="range" min="0.3" max="1.4" step="0.01" value="1.0" data-u="radius" /></label>
+    <label>Camera distance<input type="range" min="2.2" max="6" step="0.05" value="3.6" data-u="cam" /></label>
+    <label class="rt-check"><input type="checkbox" data-u="spin" checked /> auto-rotate light</label>
+  </div>
+  <figcaption style="color:var(--muted);font-size:.82rem;text-align:center;margin-top:.5rem">
+    Live WebGL raymarcher — drag the sliders. Rendered entirely in your browser.
+  </figcaption>
+</figure>
+
+<style>
+  .rt-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.6rem 1.2rem;
+    margin-top: 0.9rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .rt-controls label { display: flex; flex-direction: column; gap: 0.25rem; }
+  .rt-controls input[type='range'] { width: 100%; accent-color: var(--accent); }
+  .rt-controls .rt-check { flex-direction: row; align-items: center; gap: 0.4rem; }
+</style>
+
+<script define:vars={{ id }}>
+  const FRAG = `
+  precision highp float;
+  uniform vec2 uRes; uniform float uLight; uniform float uRadius; uniform float uCam;
+  float sdSphere(vec3 p,float r){ return length(p)-r; }
+  float sdPlane(vec3 p){ return p.y + 1.0; }
+  float map(vec3 p){ return min(sdSphere(p,uRadius), sdPlane(p)); }
+  vec3 nrm(vec3 p){ vec2 e=vec2(0.001,0.0);
+    return normalize(vec3(map(p+e.xyy)-map(p-e.xyy), map(p+e.yxy)-map(p-e.yxy), map(p+e.yyx)-map(p-e.yyx))); }
+  void main(){
+    vec2 uv=(gl_FragCoord.xy-0.5*uRes)/uRes.y;
+    vec3 ro=vec3(0.0,0.7,uCam), ta=vec3(0.0,0.0,0.0);
+    vec3 f=normalize(ta-ro), r=normalize(cross(vec3(0,1,0),f)), u=cross(f,r);
+    vec3 rd=normalize(uv.x*r+uv.y*u+1.6*f);
+    float t=0.0; bool hit=false;
+    for(int i=0;i<96;i++){ vec3 p=ro+rd*t; float d=map(p); if(d<0.001){hit=true;break;} t+=d; if(t>25.0) break; }
+    vec3 col=vec3(0.55,0.72,0.92)-0.35*uv.y;
+    if(hit){
+      vec3 p=ro+rd*t; vec3 n=nrm(p);
+      vec3 lp=vec3(3.2*cos(uLight),3.0,3.2*sin(uLight));
+      vec3 l=normalize(lp-p);
+      float diff=max(dot(n,l),0.0);
+      float sh=1.0,tt=0.03;
+      for(int j=0;j<48;j++){ float sd=map(p+l*tt); if(sd<0.001){sh=0.25;break;} tt+=sd; if(tt>12.0) break; }
+      float dsph=sdSphere(p,uRadius), dpl=sdPlane(p);
+      vec3 mat = dsph<dpl ? vec3(0.92,0.36,0.24) : (mod(floor(p.x)+floor(p.z),2.0)<1.0?vec3(0.78):vec3(0.62));
+      vec3 h=normalize(l-rd); float spec=pow(max(dot(n,h),0.0),48.0);
+      col=mat*(0.18+diff*sh)+spec*sh*0.7;
+      col=mix(col,vec3(0.55,0.72,0.92),1.0-exp(-0.0008*t*t*t));
+    }
+    col=pow(col,vec3(0.4545));
+    gl_FragColor=vec4(col,1.0);
+  }`;
+  const VERT = `attribute vec2 a; void main(){ gl_Position=vec4(a,0.0,1.0); }`;
+
+  function start() {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const fig = canvas.closest('.rt');
+    const gl = canvas.getContext('webgl');
+    if (!gl) { canvas.replaceWith(Object.assign(document.createElement('p'), { textContent: 'WebGL not available in this browser.' })); return; }
+
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'a');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+    const U = {
+      res: gl.getUniformLocation(prog, 'uRes'),
+      light: gl.getUniformLocation(prog, 'uLight'),
+      radius: gl.getUniformLocation(prog, 'uRadius'),
+      cam: gl.getUniformLocation(prog, 'uCam'),
+    };
+    const input = (name) => fig.querySelector(`[data-u="${name}"]`);
+    const sLight = input('light'), sRadius = input('radius'), sCam = input('cam'), sSpin = input('spin');
+
+    // Drag the canvas to orbit the light too.
+    let dragging = false;
+    canvas.addEventListener('pointerdown', () => { dragging = true; canvas.style.cursor = 'grabbing'; });
+    addEventListener('pointerup', () => { dragging = false; canvas.style.cursor = 'grab'; });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      let v = parseFloat(sLight.value) + e.movementX * 0.01;
+      sLight.value = ((v % 6.28) + 6.28) % 6.28;
+      sSpin.checked = false;
+    });
+
+    function resize() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr; canvas.height = h * dpr;
+      }
+    }
+
+    let frame = 0;
+    function loop() {
+      resize();
+      if (sSpin.checked) {
+        sLight.value = ((parseFloat(sLight.value) + 0.008) % 6.28).toFixed(3);
+      }
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.uniform2f(U.res, canvas.width, canvas.height);
+      gl.uniform1f(U.light, parseFloat(sLight.value));
+      gl.uniform1f(U.radius, parseFloat(sRadius.value));
+      gl.uniform1f(U.cam, parseFloat(sCam.value));
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      frame = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  if (document.readyState !== 'loading') start();
+  else document.addEventListener('DOMContentLoaded', start);
+</script>

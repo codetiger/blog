@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getEntry, render } from 'astro:content';
+import { SITE } from '../lib/site';
+
+const entry = await getEntry('pages', 'about-me');
+if (!entry) throw new Error('about-me page missing — run `npm run migrate:all` to generate it');
+const { Content } = await render(entry);
+---
+
+<BaseLayout title={`${entry.data.title} — ${SITE.title}`} description={entry.data.description ?? SITE.description}>
+  <article class="post-body">
+    <h1>{entry.data.title}</h1>
+    <Content />
+  </article>
+</BaseLayout>

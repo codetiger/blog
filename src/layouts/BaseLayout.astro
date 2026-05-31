@@ -1,0 +1,159 @@
+---
+import Seo from '../components/Seo.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  type?: 'website' | 'article';
+  published?: Date;
+}
+const { title, description, image, type, published } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const year = 2026;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#874efe" />
+    <link rel="icon" type="image/png" href={`${base}/favicon.png`} />
+    <link rel="alternate" type="application/rss+xml" title="Small World" href={`${base}/rss.xml`} />
+    <Seo title={title} description={description} image={image} type={type} published={published} />
+    <style is:global>
+      :root {
+        --bg: #16171c;
+        --surface: #1d1f26;
+        --surface-2: #23262f;
+        --border: #2a2d36;
+        --fg: #cdd0d7;
+        --heading: #f3f4f7;
+        --muted: #878d99;
+        --accent: #9d7bff;
+        --accent-soft: rgba(157, 123, 255, 0.14);
+        --maxw: 700px;
+        --radius: 10px;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font: 17px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+      ::selection { background: var(--accent-soft); }
+
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.3rem; }
+
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+      h1, h2, h3, h4 { color: var(--heading); line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; }
+      h1 { font-size: 2rem; }
+      h2 { font-size: 1.4rem; margin-top: 2.4rem; }
+      h3 { font-size: 1.15rem; margin-top: 2rem; }
+
+      img { max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); display: block; }
+
+      hr { border: 0; border-top: 1px solid var(--border); margin: 2.8rem 0; }
+
+      blockquote {
+        margin: 1.6rem 0; padding: 0.9rem 1.1rem;
+        border-left: 3px solid var(--accent);
+        background: var(--surface);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        color: var(--fg);
+      }
+      blockquote p { margin: 0.3rem 0; }
+      blockquote p:first-child { margin-top: 0; }
+      blockquote p:last-child { margin-bottom: 0; }
+
+      /* Inline code */
+      :not(pre) > code {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        padding: 0.12em 0.4em;
+        border-radius: 5px;
+        font-size: 0.86em;
+        font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      /* Shiki code blocks (.astro-code) keep their own bg; we add the chrome */
+      pre.astro-code, pre:not(.astro-code) {
+        padding: 1rem 1.15rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        overflow-x: auto;
+        font-size: 14px;
+        line-height: 1.55;
+        margin: 1.6rem 0;
+      }
+      pre code { font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+      /* Header */
+      header.site { border-bottom: 1px solid var(--border); }
+      header.site .wrap {
+        padding-top: 1.4rem; padding-bottom: 1.4rem;
+        display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap;
+      }
+      header.site .brand { font-weight: 700; font-size: 1.15rem; color: var(--heading); }
+      header.site .brand:hover { text-decoration: none; color: var(--accent); }
+      header.site nav.top { margin-left: auto; display: flex; gap: 1rem; font-size: 0.9rem; }
+      header.site .tagline { color: var(--muted); font-size: 0.85rem; }
+
+      main.wrap { padding-top: 2.6rem; padding-bottom: 4rem; }
+
+      footer.site { border-top: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; }
+      footer.site .wrap { padding-top: 1.6rem; padding-bottom: 2.4rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+      footer.site a { color: var(--muted); }
+
+      /* Tag pills (clickable) */
+      .tags { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; }
+      .tag {
+        font-size: 0.72rem; color: var(--muted);
+        background: var(--surface); border: 1px solid var(--border);
+        padding: 0.12rem 0.55rem; border-radius: 999px; letter-spacing: 0.01em;
+        text-decoration: none; transition: color 0.15s, border-color 0.15s;
+      }
+      a.tag:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+      /* Prose (post body + about page) */
+      .post-body > :first-child { margin-top: 0; }
+      .post-body p { margin: 1.2rem 0; }
+      .post-body img { margin: 1.8rem auto; }
+      .post-body figure { margin: 1.8rem 0; }
+      .post-body figure img { margin: 0; }
+      .post-body figcaption {
+        display: block; text-align: center; color: var(--muted);
+        font-size: 0.85rem; margin-top: 0.6rem;
+      }
+      .post-body ul, .post-body ol { padding-left: 1.4rem; }
+      .post-body li { margin: 0.4rem 0; }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap">
+        <a class="brand" href={base}>Small World</a>
+        <span class="tagline">Random ideas, and attempts</span>
+        <nav class="top">
+          <a href={`${base}/about-me/`}>About</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      <slot />
+    </main>
+    <footer class="site">
+      <div class="wrap">
+        <span>© {year} Harishankar</span>
+        <span><a href={`${base}/rss.xml`}>RSS</a> · built with Astro</span>
+      </div>
+    </footer>
+  </body>
+</html>
