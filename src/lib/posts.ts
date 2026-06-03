@@ -33,6 +33,7 @@ function stripInline(s: string): string {
  */
 export function summarize(entry: CollectionEntry<'posts'>, max = 180): string {
   const text = (entry.body ?? '')
+    .replace(/^\s*(import|export)\s.*$/gm, ' ') // MDX import/export statements
     .replace(/```[\s\S]*?```/g, ' ')           // fenced code blocks
     .replace(/~~~[\s\S]*?~~~/g, ' ')
     .replace(/<figure[\s\S]*?<\/figure>/gi, ' ') // captioned images
