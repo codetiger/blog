@@ -1,0 +1,1115 @@
+---
+// ShellViewer — a small interactive 3D seashell, drawn from the Raup W/D/T model.
+//
+// The mesh math is a trimmed-down port of Avarta's `geometry.rs` sweep
+// (../../Avarta): an elliptical aperture swept along a logarithmic helico-spiral.
+// No ornamentation, WASM, or path tracing — just the coiling skeleton, rendered
+// with Three.js. Drag to rotate. Props map 1:1 to the Raup parameters. With
+// `controls`, live W/D/T/n sliders rebuild the mesh and a link opens the same
+// shell in the full Avarta viewer.
+import { encodeShellUrl } from '../lib/avartaShareId';
+
+interface Props {
+  w?: number;       // whorl expansion rate (how fast the tube widens per turn)
+  d?: number;       // distance of the aperture from the coiling axis (0..~0.95)
+  t?: number;       // translation rate along the axis (0 = flat planispiral)
+  n?: number;       // number of whorls
+  aspect?: number;  // aperture aspect ratio (height/width); 1 = circular tube
+  // Layer-2 ornamentation (radial displacement of the swept tube). All default 0.
+  rib_ax_count?: number; rib_ax_amp?: number;   // axial ribs/waves across the whorl
+  rib_sp_count?: number; rib_sp_amp?: number;   // spiral cords along the coil
+  rib_sharp?: number;                            // smooth wave (0) → knife-edge ridge (1)
+  proj_count?: number; proj_rows?: number; proj_pos?: number; proj_size?: number; proj_sharp?: number; // nodules → spines
+  varix_count?: number; varix_amp?: number;     // thick transverse ridges
+  // Layer-3 pigmentation (procedural colour pattern over the growth surface).
+  pig_regime?: number;   // 0 solid, 1 bands, 2 stripes, 3 oblique, 4 tents, 5 spots, 6 net
+  pig_scale?: number; pig_contrast?: number; pig_density?: number;
+  pig_angle?: number; pig_irregularity?: number;
+  // Layer-4 material/lighting (PBR++): physical material + image-based reflections.
+  roughness?: number; clearcoat?: number; transmission?: number; iridescence?: number;
+  color?: string;        // shell / base (ground) colour
+  accentColor?: string;  // Layer-3 mid-tone palette stop
+  patternColor?: string; // Layer-3 pigment pattern colour
+  height?: number;  // viewport height in px
+  autoRotate?: boolean;
+  controls?: boolean; // show live parameter sliders
+  gallery?: boolean;  // show the left-side species preset list
+  ornament?: boolean; // also show Layer-2 ornament sliders + ornamented species
+  pigment?: boolean;  // also show Layer-3 colour controls + paint the shell
+  material?: boolean; // also show Layer-4 material/lighting (PBR++) + path-trace handoff
+  repoUrl?: string;   // GitHub project linked from the corner icon
+  caption?: string;
+}
+const {
+  w = 2.0,
+  d = 0.15,
+  t = 1.5,
+  n = 5,
+  aspect = 1.0,
+  rib_ax_count = 0, rib_ax_amp = 0,
+  rib_sp_count = 0, rib_sp_amp = 0,
+  rib_sharp = 0,
+  proj_count = 0, proj_rows = 0, proj_pos = 0, proj_size = 0, proj_sharp = 0,
+  varix_count = 0, varix_amp = 0,
+  pig_regime = 0, pig_scale = 0.5, pig_contrast = 0.5,
+  pig_density = 0.5, pig_angle = 0, pig_irregularity = 0,
+  roughness = 0.3, clearcoat = 0.55, transmission = 0, iridescence = 0,
+  color = '#efe3c8',
+  accentColor = '#b9793f',
+  patternColor = '#6f3d1d',
+  height = 420,
+  autoRotate = true,
+  controls = true,
+  gallery = true,
+  ornament = false,
+  pigment = false,
+  material = false,
+  repoUrl = 'https://github.com/codetiger/Avarta',
+  caption,
+} = Astro.props;
+
+// Slider config — ranges/steps mirror Avarta's PARAM_RANGES so the values the
+// reader picks are exactly what the share-id encodes. `aspect` is Raup's "S"
+// (aperture shape), completing the Layer-1 parameter set.
+const coilSliders = [
+  { key: 'w',      label: 'Expansion (W)',   min: 1.05, max: 8,    step: 0.01, value: w,      decimals: 2 },
+  { key: 'd',      label: 'Openness (D)',    min: 0,    max: 0.95, step: 0.01, value: d,      decimals: 2 },
+  { key: 't',      label: 'Translation (T)', min: 0,    max: 12,   step: 0.05, value: t,      decimals: 2 },
+  { key: 'n',      label: 'Whorls (n)',      min: 0.5,  max: 20,   step: 0.1,  value: n,      decimals: 1 },
+  { key: 'aspect', label: 'Aperture (S)',    min: 0.3,  max: 4,    step: 0.02, value: aspect, decimals: 2 },
+];
+// Layer-2 ornament sliders, grouped (only shown when `ornament`).
+const ornamentSliders = [
+  { group: 'Ribs & cords',     key: 'rib_ax_count', label: 'Axial ribs',    min: 0, max: 40,  step: 1,    value: rib_ax_count, decimals: 0 },
+  { group: 'Ribs & cords',     key: 'rib_ax_amp',   label: 'Rib depth',     min: 0, max: 0.6, step: 0.02, value: rib_ax_amp,   decimals: 2 },
+  { group: 'Ribs & cords',     key: 'rib_sp_count', label: 'Spiral cords',  min: 0, max: 60,  step: 1,    value: rib_sp_count, decimals: 0 },
+  { group: 'Ribs & cords',     key: 'rib_sp_amp',   label: 'Cord depth',    min: 0, max: 0.6, step: 0.02, value: rib_sp_amp,   decimals: 2 },
+  { group: 'Ribs & cords',     key: 'rib_sharp',    label: 'Profile',       min: 0, max: 1,   step: 0.02, value: rib_sharp,    decimals: 2 },
+  { group: 'Spines & nodules', key: 'proj_count',   label: 'Count / whorl', min: 0, max: 30,  step: 1,    value: proj_count,   decimals: 0 },
+  { group: 'Spines & nodules', key: 'proj_rows',    label: 'Rows',          min: 0, max: 5,   step: 1,    value: proj_rows,    decimals: 0 },
+  { group: 'Spines & nodules', key: 'proj_size',    label: 'Size',          min: 0, max: 1.2, step: 0.02, value: proj_size,    decimals: 2 },
+  { group: 'Spines & nodules', key: 'proj_sharp',   label: 'Bead → needle', min: 0, max: 1,   step: 0.02, value: proj_sharp,   decimals: 2 },
+  { group: 'Varices',          key: 'varix_count',  label: 'Varices / whorl', min: 0, max: 6,   step: 1,    value: varix_count, decimals: 0 },
+  { group: 'Varices',          key: 'varix_amp',    label: 'Prominence',      min: 0, max: 0.5, step: 0.02, value: varix_amp,   decimals: 2 },
+];
+// Layer-3 pattern names (the regime drop-down options).
+const REGIMES = ['Solid', 'Spiral bands', 'Axial stripes', 'Oblique', 'Tents', 'Spots', 'Net'];
+// Layer-3 pigment sliders (only shown when `pigment`). The pattern itself is a
+// drop-down (see the template), so it isn't a slider here.
+const pigmentSliders = [
+  { group: 'Colour', key: 'pig_scale',        label: 'Scale',        min: 0, max: 1, step: 0.02, value: pig_scale,        decimals: 2 },
+  { group: 'Colour', key: 'pig_contrast',     label: 'Contrast',     min: 0, max: 1, step: 0.02, value: pig_contrast,     decimals: 2 },
+  { group: 'Colour', key: 'pig_density',      label: 'Density',      min: 0, max: 1, step: 0.02, value: pig_density,      decimals: 2 },
+  { group: 'Colour', key: 'pig_angle',        label: 'Obliqueness',  min: 0, max: 1, step: 0.02, value: pig_angle,        decimals: 2 },
+  { group: 'Colour', key: 'pig_irregularity', label: 'Irregularity', min: 0, max: 1, step: 0.02, value: pig_irregularity, decimals: 2 },
+];
+// 3-stop palette pickers (Avarta's Ground → Accent → Pattern), in the Colour tab.
+const colorRows = pigment
+  ? [
+      { key: 'base',    label: 'Ground',  value: color },
+      { key: 'accent',  label: 'Accent',  value: accentColor },
+      { key: 'pattern', label: 'Pattern', value: patternColor },
+    ]
+  : [];
+
+// Layer-4 material sliders (PBR++), matching Avarta's four user knobs.
+const materialSliders = [
+  { group: 'Material', key: 'roughness',    label: 'Glossiness',   min: 0, max: 1, step: 0.01, value: roughness,    decimals: 2 },
+  { group: 'Material', key: 'clearcoat',    label: 'Gloss coat',   min: 0, max: 1, step: 0.01, value: clearcoat,    decimals: 2 },
+  { group: 'Material', key: 'transmission', label: 'Translucency', min: 0, max: 1, step: 0.01, value: transmission, decimals: 2 },
+  { group: 'Material', key: 'iridescence',  label: 'Iridescence',  min: 0, max: 1, step: 0.01, value: iridescence,  decimals: 2 },
+];
+
+const grouped = ornament || pigment || material;
+const sliders = grouped
+  ? [
+      ...coilSliders.map((s) => ({ ...s, group: 'Coiling' })),
+      ...(ornament ? ornamentSliders : []),
+      ...(pigment ? pigmentSliders : []),
+      ...(material ? materialSliders : []),
+    ]
+  : coilSliders;
+
+// Bundle consecutive sliders by group, then show the groups as a tabbed panel so
+// only one set of sliders is on screen at a time (keeping the shell visible).
+// Ungrouped sliders (the Layer-1 viewer) stay flat under an empty group name.
+const sliderGroups = [];
+for (const s of sliders) {
+  const name = s.group || '';
+  const last = sliderGroups[sliderGroups.length - 1];
+  if (last && last.name === name) last.items.push(s);
+  else sliderGroups.push({ name, items: [s] });
+}
+// Tabs appear only when there's more than one named group. The pigment viewer
+// opens on Colour (its headline layer); the ornament viewer opens on the first
+// non-Coiling tab (the reader already met the coiling params in viewer 1).
+const tabbed = sliderGroups.length > 1;
+const defaultGroup = material ? 'Material' : pigment ? 'Colour' : null;
+const defaultTab = Math.max(
+  0,
+  sliderGroups.findIndex((g) => (defaultGroup ? g.name === defaultGroup : g.name !== 'Coiling')),
+);
+
+// Species presets — values taken straight from Avarta's species browser
+// (web/index.html SPECIES, which mirrors harness/species.json). Each layer
+// shows the same real molluscs but exposes only that layer's effect, so the
+// example always highlights the parameter family the section is about.
+//
+// Layer 1 — pure coiling (W/D/T/n/S only): a spread that spans the model, from
+// the flat planispiral nautilus (T=0) to the tall auger (T=11), so the reader
+// feels how the five numbers reshape the coil.
+const speciesL1 = [
+  { name: 'Chambered nautilus',   params: { w: 3.0,  d: 0.1,  t: 0.0,  n: 4.0,  aspect: 1.0  } },
+  { name: "Ram's-horn (Spirula)", params: { w: 1.8,  d: 0.7,  t: 0.0,  n: 4.0,  aspect: 1.0  } },
+  { name: 'Clear sundial',        params: { w: 1.6,  d: 0.55, t: 0.85, n: 6.0,  aspect: 1.0  } },
+  { name: 'Roman snail',          params: { w: 2.6,  d: 0.18, t: 1.2,  n: 4.5,  aspect: 0.7  } },
+  { name: 'Common periwinkle',    params: { w: 2.0,  d: 0.1,  t: 2.3,  n: 5.5,  aspect: 0.85 } },
+  { name: 'Commercial top shell', params: { w: 1.6,  d: 0.05, t: 2.4,  n: 7.0,  aspect: 0.7  } },
+  { name: 'Tower screw shell',    params: { w: 1.35, d: 0.0,  t: 6.0,  n: 13.0, aspect: 0.6  } },
+  { name: 'Marlin-spike auger',   params: { w: 1.4,  d: 0.0,  t: 11.0, n: 18.0, aspect: 0.7  } },
+];
+// Layer 2 — the ornament that makes each shell recognisable. Picked to cover
+// every family: spiral cords, the crossing lattice, beaded nodules, varices and
+// axial ribs.
+const speciesL2 = [
+  { name: 'Common nutmeg (lattice)', params: { w: 1.9,  d: 0.12, t: 2.8,  n: 6.0,  aspect: 0.8,  rib_ax_count: 14, rib_ax_amp: 0.07, rib_sp_count: 11, rib_sp_amp: 0.05, rib_sharp: 0.35 } },
+  { name: 'Clear sundial (cords)',   params: { w: 1.6,  d: 0.55, t: 0.85, n: 6.0,  aspect: 1.0,  rib_sp_count: 8,  rib_sp_amp: 0.05 } },
+  { name: 'Top shell (cords)',       params: { w: 1.6,  d: 0.05, t: 2.4,  n: 7.0,  aspect: 0.7,  rib_sp_count: 8,  rib_sp_amp: 0.05 } },
+  { name: 'Screw shell (cords)',     params: { w: 1.35, d: 0.0,  t: 6.0,  n: 13.0, aspect: 0.6,  rib_sp_count: 14, rib_sp_amp: 0.05, rib_sharp: 0.3 } },
+  { name: 'Knobbed cerith (nodules)', params: { w: 1.6, d: 0.05, t: 3.5,  n: 9.0,  aspect: 0.7,  proj_count: 12, proj_rows: 2, proj_pos: 0.6, proj_size: 0.14, proj_sharp: 0.25 } },
+  { name: 'Frog shell (varices)',    params: { w: 2.0,  d: 0.12, t: 2.3,  n: 6.0,  aspect: 0.8,  varix_count: 3, varix_amp: 0.28 } },
+  { name: 'Auger (axial ribs)',      params: { w: 1.4,  d: 0.0,  t: 11.0, n: 18.0, aspect: 0.7,  rib_ax_count: 18, rib_ax_amp: 0.05 } },
+];
+// Layer 3 — each species' real pigment regime AND palette (base/accent/pattern),
+// so clicking paints the shell exactly as Avarta does. Chosen to cover the
+// regimes: bands, axial flames, oblique flames, a net, spots and pale-on-dark.
+const speciesL3 = [
+  { name: 'Grove snail (bands)',    base: '#e7c64a', accent: '#9c6b2a', pattern: '#3f2611', params: { w: 2.4, d: 0.15, t: 1.0,  n: 4.5,  aspect: 0.7, pig_regime: 1, pig_scale: 0.55, pig_contrast: 0.85, pig_density: 0.3,  pig_angle: 0,   pig_irregularity: 0.05 } },
+  { name: 'Nautilus (flames)',      base: '#f4ead2', accent: '#c8763f', pattern: '#9c3f1e', params: { w: 3.0, d: 0.1,  t: 0.0,  n: 4.0,  aspect: 1.0, pig_regime: 2, pig_scale: 0.45, pig_contrast: 0.7,  pig_density: 0.6,  pig_angle: 0,   pig_irregularity: 0.25 } },
+  { name: 'Top shell (oblique)',    base: '#eadfc8', accent: '#b65a3a', pattern: '#7e2f1c', params: { w: 1.6, d: 0.05, t: 2.4,  n: 7.0,  aspect: 0.7, rib_sp_count: 8, rib_sp_amp: 0.05, pig_regime: 3, pig_scale: 0.4, pig_contrast: 0.75, pig_density: 0.55, pig_angle: 0.6, pig_irregularity: 0.2 } },
+  { name: 'Common nutmeg (net)',    base: '#e6cda2', accent: '#b07a3f', pattern: '#7c3f1a', params: { w: 1.9, d: 0.12, t: 2.8,  n: 6.0,  aspect: 0.8, rib_ax_count: 14, rib_ax_amp: 0.07, rib_sp_count: 11, rib_sp_amp: 0.05, rib_sharp: 0.35, pig_regime: 6, pig_scale: 0.5, pig_contrast: 0.7, pig_density: 0.55, pig_angle: 0, pig_irregularity: 0.2 } },
+  { name: 'Marlin-spike (spots)',   base: '#f0e7d2', accent: '#caa05a', pattern: '#9c5a24', params: { w: 1.4, d: 0.0,  t: 11.0, n: 18.0, aspect: 0.7, rib_ax_count: 18, rib_ax_amp: 0.05, pig_regime: 5, pig_scale: 0.5, pig_contrast: 0.8, pig_density: 0.6, pig_angle: 0, pig_irregularity: 0.2 } },
+  { name: 'Knobbed cerith',         base: '#3a2c1c', accent: '#8a6e48', pattern: '#e8dcc0', params: { w: 1.6, d: 0.05, t: 3.5,  n: 9.0,  aspect: 0.7, proj_count: 12, proj_rows: 2, proj_pos: 0.6, proj_size: 0.14, proj_sharp: 0.25, pig_regime: 1, pig_scale: 0.35, pig_contrast: 0.75, pig_density: 0.4, pig_angle: 0, pig_irregularity: 0.2 } },
+];
+// Layer 4 — the same real shells, each given a different finish so the section
+// shows what material & lighting add: wet gloss, pearly nacre, matte chalk and a
+// translucent shell, all reflecting the green environment.
+const speciesL4 = [
+  { name: 'Glossy top shell',   base: '#eadfc8', accent: '#b65a3a', pattern: '#7e2f1c', params: { w: 1.6,  d: 0.05, t: 2.4, n: 7.0,  aspect: 0.7, rib_sp_count: 8, rib_sp_amp: 0.05, pig_regime: 3, pig_scale: 0.4, pig_contrast: 0.75, pig_density: 0.55, pig_angle: 0.6, pig_irregularity: 0.2, roughness: 0.12, clearcoat: 0.8,  transmission: 0,    iridescence: 0 } },
+  { name: 'Pearly nautilus',    base: '#f4ead2', accent: '#c8763f', pattern: '#9c3f1e', params: { w: 3.0,  d: 0.1,  t: 0.0, n: 4.0,  aspect: 1.0, pig_regime: 2, pig_scale: 0.45, pig_contrast: 0.65, pig_density: 0.6, pig_angle: 0, pig_irregularity: 0.25, roughness: 0.22, clearcoat: 0.35, transmission: 0,   iridescence: 0.75 } },
+  { name: 'Banded grove snail', base: '#e7c64a', accent: '#9c6b2a', pattern: '#3f2611', params: { w: 2.4,  d: 0.15, t: 1.0, n: 4.5,  aspect: 0.7, pig_regime: 1, pig_scale: 0.55, pig_contrast: 0.85, pig_density: 0.3, pig_angle: 0, pig_irregularity: 0.05, roughness: 0.3, clearcoat: 0.55, transmission: 0,   iridescence: 0 } },
+  { name: 'Matte cerith',       base: '#3a2c1c', accent: '#8a6e48', pattern: '#e8dcc0', params: { w: 1.6,  d: 0.05, t: 3.5, n: 9.0,  aspect: 0.7, proj_count: 12, proj_rows: 2, proj_pos: 0.6, proj_size: 0.14, proj_sharp: 0.25, pig_regime: 1, pig_scale: 0.35, pig_contrast: 0.75, pig_density: 0.4, pig_angle: 0, pig_irregularity: 0.2, roughness: 0.82, clearcoat: 0, transmission: 0, iridescence: 0 } },
+  { name: 'Translucent screw',  base: '#cdb38a', accent: '#9a6c40', pattern: '#6a3f20', params: { w: 1.35, d: 0.0,  t: 6.0, n: 13.0, aspect: 0.6, rib_sp_count: 14, rib_sp_amp: 0.05, rib_sharp: 0.3, pig_regime: 1, pig_scale: 0.18, pig_contrast: 0.5, pig_density: 0.3, pig_angle: 0, pig_irregularity: 0.15, roughness: 0.16, clearcoat: 0.4, transmission: 0.6, iridescence: 0 } },
+];
+const species = material ? speciesL4 : pigment ? speciesL3 : ornament ? speciesL2 : speciesL1;
+
+// All numeric parameters as data-* attributes the client reads back. Pigment
+// params are included only for the pigment viewer, so the others bake the demo
+// pigment into their share link instead of overriding it with defaults.
+const paramVals = {
+  w, d, t, n, aspect,
+  rib_ax_count, rib_ax_amp, rib_sp_count, rib_sp_amp, rib_sharp,
+  proj_count, proj_rows, proj_pos, proj_size, proj_sharp,
+  varix_count, varix_amp,
+  ...(pigment
+    ? { pig_regime, pig_scale, pig_contrast, pig_density, pig_angle, pig_irregularity }
+    : {}),
+  ...(material ? { roughness, clearcoat, transmission, iridescence } : {}),
+};
+const viewerData = Object.fromEntries(
+  Object.entries(paramVals).map(([key, v]) => [`data-${key}`, v])
+);
+
+// Layer-4 "look" (material finish + palette) baked into the share link so the
+// path-trace handoff opens the same finish in Avarta. Only when the viewer
+// exposes colour/material; otherwise the default look is used.
+const look = (pigment || material)
+  ? { roughness, clearcoat, transmission, iridescence, base: color, accent: accentColor, pattern: patternColor }
+  : undefined;
+// Initial link (build-time); the client script keeps it in sync with the controls.
+const demoUrl = encodeShellUrl(paramVals, look);
+---
+
+<figure class="shell-fig">
+  <div class="shell-stage">
+    {gallery && (
+      <nav class="shell-species" aria-label="Example species">
+        {species.map((sp) => (
+          <button
+            type="button"
+            class="species"
+            data-params={JSON.stringify(sp.params)}
+            data-base={sp.base}
+            data-accent={sp.accent}
+            data-pattern={sp.pattern}
+          >
+            {sp.name}
+          </button>
+        ))}
+      </nav>
+    )}
+    <div
+      class="shell-viewer"
+      {...viewerData}
+      data-color={color}
+      data-accent={accentColor}
+      data-pattern={patternColor}
+      data-pigment={String(pigment)}
+      data-material={String(material)}
+      data-autorotate={String(autoRotate)}
+      style={`height:${height}px`}
+    >
+      <div class="shell-corner">
+      <a
+        class="shell-demo"
+        href={demoUrl}
+        target="_blank"
+        rel="noopener"
+        title="Open this shell in the full 3D viewer"
+        aria-label="Open this shell in the full 3D viewer"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" />
+          <line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+      </a>
+      <a
+        class="shell-gh"
+        href={repoUrl}
+        target="_blank"
+        rel="noopener"
+        title="View the Avarta project on GitHub"
+        aria-label="View the Avarta project on GitHub"
+      >
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+        </svg>
+      </a>
+      </div>
+    </div>
+  </div>
+
+  {controls && (
+    <div class="shell-controls">
+      {tabbed && (
+        <div class="shell-tabs" role="tablist">
+          {sliderGroups.map((grp, gi) => (
+            <button
+              type="button"
+              class:list={['shell-tab', { 'is-active': gi === defaultTab }]}
+              role="tab"
+              data-tab={gi}
+              aria-selected={gi === defaultTab ? 'true' : 'false'}
+            >
+              {grp.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {sliderGroups.map((grp, gi) => (
+        <div class="shell-panel" data-panel={gi} hidden={tabbed && gi !== defaultTab}>
+          {grp.name === 'Colour' && (
+            <label class="shell-row">
+              <span class="shell-row-label">Pattern</span>
+              <select class="shell-select" data-select="pig_regime">
+                {REGIMES.map((nm, i) => (
+                  <option value={i} selected={i === Math.round(pig_regime)}>{nm}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {grp.items.map((s) => (
+            <label class="shell-row">
+              <span class="shell-row-label">{s.label}</span>
+              <input
+                type="range"
+                data-param={s.key}
+                data-decimals={s.decimals}
+                min={s.min}
+                max={s.max}
+                step={s.step}
+                value={s.value}
+              />
+              <output data-out={s.key}>{s.value.toFixed(s.decimals)}</output>
+            </label>
+          ))}
+          {grp.name === 'Colour' && colorRows.map((c) => (
+            <label class="shell-row">
+              <span class="shell-row-label">{c.label}</span>
+              <input type="color" data-color={c.key} value={c.value} class="shell-swatch" />
+            </label>
+          ))}
+          {grp.name === 'Material' && (
+            <div class="shell-modes" role="group" aria-label="Render mode">
+              <button type="button" class="shell-mode is-active" disabled>PBR++</button>
+              <a class="shell-mode shell-demo" href={demoUrl} target="_blank" rel="noopener">
+                Path Tracing ↗
+              </a>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )}
+
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<script>
+  import * as THREE from 'three';
+  import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
+  import { encodeShellUrl } from '../lib/avartaShareId';
+
+  // Ornament profiles, ported from Avarta's noise.rs.
+  // Rib/wave profile in [-1,1]: smooth cosine (sharp 0) → knife-edge ridge (1).
+  function ribbed(x, sharp) {
+    const c = 0.5 * (Math.cos(x) + 1);
+    const p = 1 + Math.min(Math.max(sharp, 0), 1) * 8;
+    return 2 * Math.pow(c, p) - 1;
+  }
+  // Positive lobe in [0,1] peaking every 2π; `power` narrows bump → spike.
+  function lobe(x, power) {
+    return Math.pow(Math.max(Math.cos(x), 0), power);
+  }
+
+  // --- Layer 3: procedural pigment ---------------------------------------
+  // Approximates Avarta's reaction-diffusion regimes as a pattern over the
+  // growth coordinates u (along the coil) and v (around the aperture), returned
+  // as 0..1 (base → pattern colour). It's not the real RD engine, but it
+  // reproduces the look of each regime and responds to the same knobs.
+  function hash01(n) {
+    const s = Math.sin(n * 127.1) * 43758.5453;
+    return s - Math.floor(s);
+  }
+  function valNoise(x) {
+    const i = Math.floor(x), f = x - i;
+    const a = hash01(i), b = hash01(i + 1);
+    const u = f * f * (3 - 2 * f);
+    return a + (b - a) * u;
+  }
+  function contrastify(s, contrast) {
+    const k = 1 + (contrast || 0) * (contrast || 0) * 50; // soft → hard edge
+    return 1 / (1 + Math.exp(-k * (s - 0.5)));
+  }
+  function pigmentValue(u, v, p) {
+    const regime = Math.round(p.pig_regime || 0);
+    if (regime === 0) return 0;                          // solid
+    const scale = p.pig_scale ?? 0.5;
+    const density = p.pig_density ?? 0.5;
+    const angle = p.pig_angle ?? 0;
+    const irr = p.pig_irregularity ?? 0;
+    const TWO_PI = Math.PI * 2;
+    // small scale → many fine features; large → few coarse ones.
+    const fu = 2 + Math.round((1 - scale) * 30);         // frequency along coil
+    const fv = Math.max(1, Math.round(2 + (1 - scale) * 20)); // integer → seamless in v
+    const jit = irr > 0 ? (valNoise(u * 6.2 + v * 3.7) - 0.5) * irr : 0;
+    let s;
+    if (regime === 1) {                                  // spiral bands (vary with v)
+      s = 0.5 + 0.5 * Math.sin((v * fv + jit) * TWO_PI);
+    } else if (regime === 2) {                           // axial stripes (vary with u)
+      s = 0.5 + 0.5 * Math.sin((u * fu + jit) * TWO_PI);
+    } else if (regime === 3) {                           // oblique lines
+      const lean = (angle * 2 - 1) * fv;
+      s = 0.5 + 0.5 * Math.sin((u * fu + v * lean + jit) * TWO_PI);
+    } else if (regime === 4) {                           // chevrons / tents
+      const tri = Math.abs(((v * fv) % 1) * 2 - 1);      // triangle wave around aperture
+      s = 0.5 + 0.5 * Math.sin((u * fu + tri * (1 + angle * 4) + jit) * TWO_PI);
+    } else if (regime === 5) {                           // spots on a grid
+      const cu = u * fu, cv = v * fv;
+      const du = cu - Math.round(cu), dv = cv - Math.round(cv);
+      s = 1 - Math.min(1, Math.hypot(du, dv) * 2.4) + jit;
+    } else {                                             // 6 net / reticulate
+      const lu = Math.pow(0.5 + 0.5 * Math.cos((u * fu + jit) * TWO_PI), 6);
+      const lv = Math.pow(0.5 + 0.5 * Math.cos((v * fv + jit) * TWO_PI), 6);
+      s = Math.max(lu, lv);
+    }
+    s += (density - 0.5) * 0.7;                          // density biases coverage
+    return Math.min(1, Math.max(0, contrastify(s, p.pig_contrast ?? 0.5)));
+  }
+
+  // Build the shell: sweep an elliptical aperture along a logarithmic helico-
+  // spiral (Layer 1), then push the surface in/out with Layer-2 ornament — a
+  // radial displacement that is a function of θ (along the coil) and φ (around
+  // the aperture). Faithful to Avarta's sweep. The φ-seam is welded (indices
+  // wrap with modulo) so vertex normals stay smooth around the tube.
+  function buildShellGeometry(p, palette) {
+    const TWO_PI = Math.PI * 2;
+    const { w, d, t, n, aspect } = p;
+    const pigOn = !!(palette && palette.pigment);
+    const axCount = p.rib_ax_count || 0, axAmp = p.rib_ax_amp || 0;
+    const spCount = p.rib_sp_count || 0, spAmp = p.rib_sp_amp || 0;
+    const sharp = p.rib_sharp || 0;
+    const pjCount = p.proj_count || 0, pjRows = p.proj_rows || 0;
+    const pjPos = p.proj_pos || 0, pjSize = p.proj_size || 0, pjSharp = p.proj_sharp || 0;
+    const vxCount = p.varix_count || 0, vxAmp = p.varix_amp || 0;
+
+    const projActive = pjSize > 1e-6 && pjCount > 0.5 && pjRows > 0.5;
+    const projPower = 2 + Math.min(Math.max(pjSharp, 0), 1) ** 2 * 40;
+    const VARIX_POWER = 3;
+
+    const k = Math.log(w) / TWO_PI;        // growth rate: g = e^(k·θ) grows ×W per turn
+    const totalTheta = n * TWO_PI;
+
+    // Adaptive tessellation: add rows where features repeat along the coil
+    // (axial ribs, varices, projections) and columns where they repeat around
+    // the aperture (spiral cords). Capped + budgeted to stay interactive.
+    let rowsPerWhorl = 96;                 // smooth-tube baseline (visually round)
+    if (axAmp > 1e-6) rowsPerWhorl = Math.max(rowsPerWhorl, axCount * 12);
+    if (vxAmp > 1e-6) rowsPerWhorl = Math.max(rowsPerWhorl, vxCount * 16);
+    if (projActive) rowsPerWhorl = Math.max(rowsPerWhorl, pjCount * 40);
+    let rows = Math.round(rowsPerWhorl * n);
+    let cols = 56;
+    if (spAmp > 1e-6) cols = Math.max(cols, spCount * 8);
+    if (projActive) cols = Math.max(cols, 96);
+    rows = Math.min(Math.max(rows, 16), 3200);
+    cols = Math.min(Math.max(cols, 24), 240);
+    const BUDGET = 380000;
+    if (rows * cols > BUDGET) {
+      const sc = Math.sqrt(BUDGET / (rows * cols));
+      rows = Math.max(16, Math.floor(rows * sc));
+      cols = Math.max(24, Math.floor(cols * sc));
+    }
+
+    // Palette as linear RGB (THREE.Color components) for per-vertex tinting.
+    const bc = pigOn ? palette.base : null;
+    const ac = pigOn ? palette.accent : null;
+    const pc = pigOn ? palette.pattern : null;
+    const colors = pigOn ? [] : null;
+
+    const positions = [];
+    for (let i = 0; i <= rows; i++) {
+      const theta = (i / rows) * totalTheta;
+      const u = i / rows;                    // 0..1 growth-time fraction
+      const g = Math.exp(k * theta);
+      const apR = aspect * g;                // aperture radial semi-axis
+      const apZ = g;                         // aperture axial semi-axis
+      const radius = apR / (1 - d);          // axis → aperture centre
+      const cz = t * radius;                 // centre height → conical spire
+      const ct = Math.cos(theta), st = Math.sin(theta);
+      // θ-only ornament terms (constant around the aperture).
+      const axial = axAmp * ribbed(axCount * theta, sharp);
+      const varix = vxAmp * lobe(vxCount * theta, VARIX_POWER);
+      const projTheta = projActive ? lobe(pjCount * theta, projPower) : 0;
+      for (let j = 0; j < cols; j++) {
+        const phi = (j / cols) * TWO_PI;
+        const spiral = spAmp * ribbed(spCount * phi, sharp);
+        const proj = projActive
+          ? pjSize * projTheta * lobe(pjRows * (phi - pjPos), projPower)
+          : 0;
+        // Radial displacement, scaled by g so ornament stays proportional.
+        const disp = g * (axial + spiral + varix + proj);
+        const rr = radius + (apR + disp) * Math.cos(phi);
+        positions.push(rr * ct, rr * st, cz + (apZ + disp) * Math.sin(phi));
+        if (pigOn) {
+          const f = pigmentValue(u, j / cols, p); // 0 ground → 1 pattern
+          // 3-stop palette ground → accent → pattern (linear lerp, as Avarta).
+          const lo = f < 0.5 ? bc : ac, hi = f < 0.5 ? ac : pc;
+          const kk = f < 0.5 ? f / 0.5 : (f - 0.5) / 0.5;
+          colors.push(
+            lo.r + (hi.r - lo.r) * kk,
+            lo.g + (hi.g - lo.g) * kk,
+            lo.b + (hi.b - lo.b) * kk,
+          );
+        }
+      }
+    }
+
+    const indices = [];
+    const vid = (i, j) => i * cols + j;
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        const jn = (j + 1) % cols;           // wrap φ → welded seam
+        const a = vid(i, j), b = vid(i + 1, j), c = vid(i + 1, jn), e = vid(i, jn);
+        indices.push(a, b, c, a, c, e);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    if (pigOn) geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    geo.center();                            // recentre on its own centroid
+    // Normalise to a unit sphere. Raw coil coords span hundreds of units and the
+    // scale swings wildly with W/n — without this the auto-framed camera sits far
+    // beyond the far plane and the whole mesh is clipped away. Scaling to unit
+    // size keeps every shell the same on-screen size (as Avarta's Rust does).
+    geo.computeBoundingSphere();
+    const s = 1 / Math.max(geo.boundingSphere.radius, 1e-6);
+    geo.scale(s, s, s);
+    geo.rotateX(Math.PI / 2);                // coil axis (+Z) → vertical, apex/spire up
+    return geo;
+  }
+
+  // Layer 4 — a green, leafy environment built as a floating-point (HDR)
+  // equirectangular map. PBR specular and clearcoat reflect the *environment*,
+  // so for a glossy finish to look shiny the map must be HDR: a low-dynamic-range
+  // image (everything ≤ 1.0) has nothing bright to mirror and the gloss reads as
+  // matte. We paint a green sky→ground gradient at moderate radiance and add a
+  // few bright "sun-gap" dapples (radiance well above 1) high in the canopy —
+  // those become the crisp specular highlights on the shell. The same map is the
+  // IBL source and, softly blurred, the backdrop. Values are LINEAR radiance.
+  function makeGreenEnvHDR() {
+    const W = 512, H = 256;
+    const data = new Float32Array(W * H * 4);
+    const lerp = (a, b, t) => a + (b - a) * t;
+    for (let y = 0; y < H; y++) {
+      const v = y / (H - 1);                   // 0 = up (canopy) → 1 = down (ground)
+      let r, g, b;
+      if (v < 0.5) {                            // sky / canopy gaps (brighter, lime)
+        const t = v / 0.5, s = lerp(1.25, 0.95, t);
+        r = lerp(0.42, 0.26, t) * s; g = lerp(0.92, 0.60, t) * s; b = lerp(0.26, 0.15, t) * s;
+      } else {                                  // foliage → mossy ground (dim)
+        const t = (v - 0.5) / 0.5, s = lerp(1.0, 0.45, t);
+        r = lerp(0.26, 0.08, t) * s; g = lerp(0.60, 0.15, t) * s; b = lerp(0.15, 0.06, t) * s;
+      }
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 1;
+      }
+    }
+    // Bright sun-dapples (deterministic positions) high in the canopy. Their
+    // radiance climbs well above 1, so a glossy/clearcoat surface mirrors them as
+    // sharp highlights — the actual source of the "shine".
+    for (let k = 0; k < 10; k++) {
+      const cx = (Math.sin(k * 53.7) * 0.5 + 0.5) * W;
+      const cy = (0.06 + (Math.sin(k * 17.3) * 0.5 + 0.5) * 0.34) * H;
+      const rad = 4.5 + (Math.sin(k * 9.1) * 0.5 + 0.5) * 5; // peak radiance 4.5..9.5
+      const sig = 3 + (Math.sin(k * 4.7) * 0.5 + 0.5) * 5;   // pixel sigma
+      const x0 = Math.max(0, Math.floor(cx - sig * 3)), x1 = Math.min(W - 1, Math.ceil(cx + sig * 3));
+      const y0 = Math.max(0, Math.floor(cy - sig * 3)), y1 = Math.min(H - 1, Math.ceil(cy + sig * 3));
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const dx = x - cx, dy = y - cy;
+          const f = rad * Math.exp(-(dx * dx + dy * dy) / (2 * sig * sig));
+          const i = (y * W + x) * 4;
+          data[i] += f; data[i + 1] += f * 1.05; data[i + 2] += f * 0.7; // warm white-green
+        }
+      }
+    }
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.LinearSRGBColorSpace;  // HDR radiance is linear, not sRGB
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  function initViewer(el) {
+    if (el.dataset.ready) return;
+    el.dataset.ready = '1';
+
+    const pigment = el.dataset.pigment === 'true';
+    const material = el.dataset.material === 'true';
+
+    // Every shell parameter, with the Layer-1..4 defaults. Read back from the
+    // viewer's data-* attributes; the gallery/sliders mutate `params`. Pigment
+    // and material keys exist only on the viewers that expose them.
+    const DEFAULTS = {
+      w: 2, d: 0.15, t: 1.5, n: 5, aspect: 1,
+      rib_ax_count: 0, rib_ax_amp: 0, rib_sp_count: 0, rib_sp_amp: 0, rib_sharp: 0,
+      proj_count: 0, proj_rows: 0, proj_pos: 0, proj_size: 0, proj_sharp: 0,
+      varix_count: 0, varix_amp: 0,
+    };
+    const PIG_DEFAULTS = {
+      pig_regime: 0, pig_scale: 0.5, pig_contrast: 0.5,
+      pig_density: 0.5, pig_angle: 0, pig_irregularity: 0,
+    };
+    const MAT_DEFAULTS = { roughness: 0.3, clearcoat: 0.55, transmission: 0, iridescence: 0 };
+    const MATERIAL_KEYS = new Set(Object.keys(MAT_DEFAULTS));
+    const defs = {
+      ...DEFAULTS,
+      ...(pigment ? PIG_DEFAULTS : {}),
+      ...(material ? MAT_DEFAULTS : {}),
+    };
+    const params = {};
+    for (const key of Object.keys(defs)) {
+      const v = parseFloat(el.dataset[key]);
+      params[key] = Number.isFinite(v) ? v : defs[key];
+    }
+
+    // Layer-3 palette (base + pattern colours), mutated by the colour pickers.
+    const palette = {
+      pigment,
+      base: new THREE.Color(el.dataset.color),
+      accent: new THREE.Color(el.dataset.accent || '#b9793f'),
+      pattern: new THREE.Color(el.dataset.pattern || '#6f3d1d'),
+    };
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    el.appendChild(renderer.domElement);
+
+    // Lighting.
+    if (material) {
+      // Layer 4 (PBR++) — match Avarta's live raster: light almost entirely from
+      // a green HDR environment (so specular + clearcoat reflections actually
+      // read as shiny) plus one soft, warm key for a crisp highlight streak. No
+      // hemisphere/rim — the environment supplies the fill — and the exposure is
+      // dimmed so the bright reflections stand out instead of washing flat.
+      const env = makeGreenEnvHDR();
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromEquirectangular(env).texture;
+      pmrem.dispose();
+      scene.environmentIntensity = 1.15;   // keep the IBL punchy → bright reflections
+      scene.background = env;
+      scene.backgroundBlurriness = 0.45;   // soft bokeh foliage; keep the shell the subject
+      scene.backgroundIntensity = 0.7;     // backdrop reads as soft green with gentle sun-gaps
+      renderer.toneMappingExposure = 0.78; // Avarta uses 0.7; lets highlights pop
+      const key = new THREE.DirectionalLight(0xfff4e6, 0.9);
+      key.position.set(4, 6, 5);
+      scene.add(key);
+    } else {
+      // Layer-1..3 viewers: a soft hemisphere fill, a key, and a dim purple rim —
+      // reads well on the dark page without an environment.
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x202028, 1.1));
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(2, 3, 2.5);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(0x9d7bff, 0.6);
+      rim.position.set(-3, -1, -2);
+      scene.add(rim);
+    }
+
+    const geo = buildShellGeometry(params, palette);
+    // A physical material for Layer 4 (clearcoat / transmission / iridescence);
+    // a cheaper standard material otherwise. Pigment carries the palette as
+    // per-vertex colours (base white); without pigment it's a single colour.
+    const matOpts = {
+      color: pigment ? 0xffffff : new THREE.Color(el.dataset.color),
+      vertexColors: pigment,
+      roughness: 0.55,
+      metalness: 0.0,
+      side: THREE.DoubleSide,              // open aperture → show the inside too
+    };
+    const mat = material
+      ? new THREE.MeshPhysicalMaterial(matOpts)
+      : new THREE.MeshStandardMaterial(matOpts);
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    // Apply the PBR++ knobs to the physical material (Avarta's mapping).
+    function applyMaterial() {
+      if (!material) return;
+      mat.roughness = params.roughness;
+      mat.clearcoat = params.clearcoat;
+      mat.clearcoatRoughness = 0.25;
+      mat.ior = 1.45;
+      mat.iridescence = params.iridescence;
+      mat.iridescenceIOR = 1.3;
+      mat.envMapIntensity = 1.0;
+      mat.transmission = params.transmission;
+      mat.thickness = params.transmission > 0.001 ? 0.6 : 0;
+      mat.attenuationColor = new THREE.Color(0xd9c7a0);
+      mat.attenuationDistance = params.transmission > 0.001 ? 2.5 : Infinity;
+      mat.needsUpdate = true;             // recompile when a feature toggles on/off
+    }
+    applyMaterial();
+
+    // Frame the camera to the mesh's bounding sphere.
+    geo.computeBoundingSphere();
+    const r = geo.boundingSphere.radius;
+    const dist = (r * 1.6) / Math.sin((camera.fov * Math.PI) / 180 / 2);
+    camera.position.set(dist * 0.55, dist * 0.35, dist * 0.78);
+    camera.lookAt(0, 0, 0);
+
+    // TrackballControls: quaternion/arcball free rotation — no fixed up-axis, so
+    // no gimbal lock (unlike OrbitControls). Matches Avarta's viewer.
+    const controls = new TrackballControls(camera, renderer.domElement);
+    controls.rotateSpeed = 3.5;
+    controls.noZoom = true;                 // don't hijack page scroll
+    controls.noPan = true;
+    controls.staticMoving = false;          // smooth, damped
+    controls.dynamicDampingFactor = 0.12;
+    controls.target.set(0, 0, 0);
+
+    // TrackballControls has no built-in autoRotate, so spin the mesh as a gentle
+    // turntable about its (vertical) axis until the reader grabs it.
+    let autoSpin = el.dataset.autorotate === 'true';
+    controls.addEventListener('start', () => { autoSpin = false; });
+
+    function resize() {
+      const wpx = el.clientWidth, hpx = el.clientHeight;
+      if (!wpx || !hpx) return;
+      renderer.setSize(wpx, hpx);
+      camera.aspect = wpx / hpx;
+      camera.updateProjectionMatrix();
+      controls.handleResize();             // TrackballControls caches the element rect
+    }
+    resize();
+    new ResizeObserver(resize).observe(el);
+
+    // Only animate while on screen. A `dirty` flag coalesces geometry rebuilds
+    // to at most one per frame — ornamented meshes are heavy, and a slider drag
+    // fires many input events. Because the mesh is normalised to a unit sphere,
+    // the camera framing stays valid after a rebuild — no need to re-frame.
+    let running = false, raf = 0, dirty = false;
+    function loop() {
+      raf = requestAnimationFrame(loop);
+      if (dirty) {
+        const old = mesh.geometry;
+        mesh.geometry = buildShellGeometry(params, palette);
+        old.dispose();
+        dirty = false;
+      }
+      if (autoSpin) mesh.rotation.y += 0.004;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    new IntersectionObserver((entries) => {
+      const visible = entries[0].isIntersecting;
+      if (visible && !running) { running = true; loop(); }
+      else if (!visible && running) { running = false; cancelAnimationFrame(raf); }
+    }, { rootMargin: '100px' }).observe(el);
+
+    // --- Live sliders + species gallery + "open in full viewer" link --------
+    const fig = el.closest('.shell-fig');
+    const demoLinks = fig ? fig.querySelectorAll('.shell-demo') : [];
+    const hex = (c) => '#' + c.getHexString();
+    function updateLink() {
+      // Bake the Layer-3 palette and Layer-4 material into the look segment so
+      // the path-trace handoff opens the same finish in Avarta.
+      const look = (pigment || material)
+        ? {
+            roughness: params.roughness, clearcoat: params.clearcoat,
+            transmission: params.transmission, iridescence: params.iridescence,
+            base: hex(palette.base), accent: hex(palette.accent), pattern: hex(palette.pattern),
+          }
+        : undefined;
+      const href = encodeShellUrl(params, look);
+      demoLinks.forEach((a) => { a.href = href; });
+    }
+    if (fig) {
+      // Map slider key → input, plus a helper to sync one slider's value readout.
+      const inputs = {};
+      fig.querySelectorAll('input[type="range"][data-param]').forEach((input) => {
+        inputs[input.dataset.param] = input;
+      });
+      const setDisplay = (key, value) => {
+        const input = inputs[key];
+        if (!input) return;
+        const out = fig.querySelector(`output[data-out="${key}"]`);
+        if (out) out.textContent = value.toFixed(parseInt(input.dataset.decimals || '2', 10));
+      };
+      // The pattern regime is a <select>, not a slider.
+      const selects = {};
+      fig.querySelectorAll('select[data-select]').forEach((sel) => {
+        selects[sel.dataset.select] = sel;
+      });
+      const clearActiveSpecies = () =>
+        fig.querySelectorAll('.species.is-active').forEach((b) => b.classList.remove('is-active'));
+
+      // Manual slider edits: update one param. Material knobs just re-tune the
+      // material (no geometry rebuild); everything else rebuilds the mesh.
+      Object.values(inputs).forEach((input) => {
+        input.addEventListener('input', () => {
+          const key = input.dataset.param;
+          const v = parseFloat(input.value);
+          params[key] = v;
+          setDisplay(key, v);
+          clearActiveSpecies();
+          if (MATERIAL_KEYS.has(key)) applyMaterial();
+          else dirty = true;
+          updateLink();
+        });
+      });
+
+      // Pattern drop-down: pick a pigment regime.
+      Object.values(selects).forEach((sel) => {
+        sel.addEventListener('change', () => {
+          params[sel.dataset.select] = parseFloat(sel.value);
+          clearActiveSpecies();
+          dirty = true;
+          updateLink();
+        });
+      });
+
+      // Species presets: reset every param to its default, then apply the preset
+      // (so ornament from a previously-clicked species doesn't linger), sync the
+      // sliders, and highlight the chosen species.
+      fig.querySelectorAll('.species').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const preset = JSON.parse(btn.dataset.params);
+          for (const key of Object.keys(defs)) {
+            const value = key in preset ? preset[key] : defs[key];
+            params[key] = value;
+            if (inputs[key]) inputs[key].value = value;
+            if (selects[key]) selects[key].value = value;
+            setDisplay(key, value);
+          }
+          // Layer-3/4 species also carry their real palette (Ground/Accent/
+          // Pattern) — apply it to the live colours and the swatch inputs so the
+          // shell is painted exactly as in Avarta.
+          if (pigment) {
+            ['base', 'accent', 'pattern'].forEach((k) => {
+              const hexVal = btn.dataset[k];
+              if (!hexVal) return;
+              palette[k].set(hexVal);
+              const ci = fig.querySelector(`input[type="color"][data-color="${k}"]`);
+              if (ci) ci.value = hexVal;
+            });
+          }
+          clearActiveSpecies();
+          btn.classList.add('is-active');
+          applyMaterial();
+          dirty = true;
+          updateLink();
+        });
+      });
+
+      // Colour pickers (Layer 3): repaint the per-vertex palette live.
+      fig.querySelectorAll('input[type="color"][data-color]').forEach((input) => {
+        input.addEventListener('input', () => {
+          palette[input.dataset.color].set(input.value);
+          dirty = true;
+        });
+      });
+
+      // Tabbed control panel: a tab click shows its group, hides the others.
+      const tabs = fig.querySelectorAll('.shell-tab');
+      const panels = fig.querySelectorAll('.shell-panel');
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const idx = tab.dataset.tab;
+          tabs.forEach((t) => {
+            const on = t.dataset.tab === idx;
+            t.classList.toggle('is-active', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          panels.forEach((pnl) => { pnl.hidden = pnl.dataset.panel !== idx; });
+        });
+      });
+
+      // Normalise initial readouts (e.g. the pattern slider shows a name).
+      Object.keys(inputs).forEach((key) => setDisplay(key, parseFloat(inputs[key].value)));
+    }
+    updateLink();
+  }
+
+  function boot() {
+    document.querySelectorAll('.shell-viewer').forEach(initViewer);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+</script>
+
+<style>
+  .shell-fig {
+    margin: 2rem 0;
+  }
+
+  /* Species list (left) + viewer (right). */
+  .shell-stage {
+    display: flex;
+    gap: 0.8rem;
+    align-items: stretch;
+  }
+  .shell-species {
+    flex: 0 0 9.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    overflow: auto;
+  }
+  .species {
+    text-align: left;
+    font: inherit;
+    font-size: 0.82rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .species:hover {
+    color: var(--heading);
+    border-color: var(--accent);
+  }
+  .species.is-active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .shell-viewer {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background:
+      radial-gradient(120% 120% at 50% 0%, #1f2129 0%, var(--bg) 70%);
+    cursor: grab;
+    touch-action: pan-y;        /* let vertical page scroll through */
+    overflow: hidden;
+  }
+  .shell-viewer:active { cursor: grabbing; }
+
+  /* Corner icon links overlaid on the viewer. The container ignores pointer
+     events so drags pass through; only the icons themselves are clickable. */
+  .shell-corner {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    z-index: 2;
+    display: flex;
+    gap: 0.4rem;
+    pointer-events: none;
+  }
+  .shell-corner a {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--muted);
+    background: rgba(18, 19, 24, 0.55);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .shell-corner a:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(18, 19, 24, 0.85);
+    text-decoration: none;
+  }
+  .shell-corner svg { width: 17px; height: 17px; display: block; }
+
+  .shell-controls {
+    margin-top: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  /* Tabbed control panel. */
+  .shell-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .shell-tab {
+    font: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;        /* overlap the tab-strip border */
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .shell-tab:hover { color: var(--fg); }
+  .shell-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+  .shell-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .shell-panel[hidden] { display: none; }
+  .shell-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 0.85rem;
+  }
+  .shell-row-label { flex: 0 0 8.5rem; color: var(--muted); }
+  .shell-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .shell-row output {
+    flex: 0 0 2.6rem;
+    text-align: right;
+    color: var(--heading);
+    font-variant-numeric: tabular-nums;
+  }
+  .shell-swatch {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+  .shell-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+  .shell-swatch::-webkit-color-swatch { border: none; border-radius: 4px; }
+  .shell-select {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--heading);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.28rem 0.4rem;
+    cursor: pointer;
+  }
+  .shell-select:focus { outline: none; border-color: var(--accent); }
+  .shell-modes {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.2rem;
+  }
+  .shell-mode {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .shell-mode.is-active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    cursor: default;
+  }
+  a.shell-mode:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+  @media (max-width: 640px) {
+    .shell-stage { flex-direction: column; }
+    .shell-species {
+      flex-basis: auto;
+      flex-direction: row;
+      overflow-x: auto;
+      padding-bottom: 0.2rem;
+    }
+    .species { flex: 0 0 auto; white-space: nowrap; }
+  }
+  @media (max-width: 520px) {
+    .shell-row-label { flex-basis: 7rem; }
+  }
+
+  .shell-fig figcaption {
+    display: block;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 0.6rem;
+  }
+</style>

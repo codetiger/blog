@@ -1,6 +1,8 @@
 import { defineConfig } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 // Matches the live site layout: https://codetiger.github.io/blog/
 // `site` + `base` keep every post at /blog/<slug>/ so existing URLs are preserved.
@@ -20,5 +22,10 @@ export default defineConfig({
   markdown: {
     // Semi-dark code blocks that sit nicely on the dark page background.
     shikiConfig: { theme: 'github-dark-dimmed', wrap: false },
+    // LaTeX: remark-math parses $…$ / $$…$$, rehype-katex renders it to HTML
+    // at build time (no client-side JS). The KaTeX stylesheet is loaded in
+    // BaseLayout.astro. MDX inherits this config automatically.
+    remarkPlugins: [remarkMath],
+    rehypePlugins: [rehypeKatex],
   },
 });

@@ -1,5 +1,8 @@
 ---
 import Seo from '../components/Seo.astro';
+// KaTeX styles for LaTeX math (rendered at build time by rehype-katex).
+// Bundled by Vite so the fonts ship with the site — no CDN dependency.
+import 'katex/dist/katex.min.css';
 
 interface Props {
   title: string;
