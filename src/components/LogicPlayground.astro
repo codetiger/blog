@@ -1,0 +1,419 @@
+---
+// LogicPlayground — embeds the real datalogic-rs visual playground/debugger
+// (the same engine that runs in the live playground) inline in a post.
+//
+// It mounts the project's embed bundle (public/assets/datalogic/), which bundles
+// React, ReactFlow and the WASM JSONLogic engine — so the blog stays
+// zero-framework; we just lazy-import the module, much like ShellViewer.astro
+// does for three.js. The module's default export is the DataLogicEmbed API;
+// renderWidget(el) reads the rule + data off the element's data-* attributes.
+//
+// NOTE: must be the ES-module build (datalogic-embed.mjs), loaded as a module.
+// The shipped IIFE build wraps the wasm-bindgen `web` glue (which uses
+// `import.meta.url`) into an IIFE where `import.meta` is invalid, so its inlined
+// WASM import rejects and evaluation never initializes. The ESM build keeps
+// `import.meta` valid and WASM initializes correctly.
+//
+// Bundle is pinned to datalogic-rs v5.0.0. To regenerate: in
+// ../Plasmatic/datalogic-rs/ui run `npm run sync-wasm && npx vite build
+// --config vite.embed-esm.config.ts`, then copy ui/dist-embed-esm/
+// datalogic-embed.{mjs,css} into public/assets/datalogic/.
+//
+//   mode="minimal"  → Logic | Data | Result only (the flow diagram is hidden)
+//   mode="full"     → the whole debugger: editors left, flow diagram right (like
+//                     the live playground), with a step-through trace
+//   fullBleed       → break out of the 820px article column to (capped) viewport width
+
+import { encode as msgpackEncode } from '@msgpack/msgpack';
+import { deflateSync } from 'fflate';
+
+interface Props {
+  logic: unknown;            // a JSONLogic rule (object)
+  data?: unknown;            // sample data the rule runs against
+  mode?: 'minimal' | 'full'; // minimal hides the flow diagram
+  height?: string;           // widget height, e.g. "300px"
+  editable?: boolean;        // allow editing diagram nodes (full mode)
+  fullBleed?: boolean;       // span the full page width
+  caption?: string;
+}
+
+const {
+  logic,
+  data = {},
+  mode = 'minimal',
+  height = mode === 'full' ? '640px' : '300px',
+  editable = false,
+  fullBleed = false,
+  caption,
+} = Astro.props;
+
+// Minimal widgets hide the diagram and size to the input row (~180px), so reserve
+// just that for the skeleton; full widgets reserve their whole height.
+const skeletonMinHeight = mode === 'full' ? height : '188px';
+
+const REPO_URL = 'https://github.com/GoPlasmatic/datalogic-rs';
+const PLAYGROUND_URL = 'https://goplasmatic.github.io/datalogic-rs/playground/';
+
+// Build a live-playground link that opens THIS rule + data in the full debugger.
+// Mirrors the playground's share encoding (url-share.ts): {l,d} → MessagePack →
+// Deflate(level 9) → Base64URL, passed as `?s=`. Runs at build time.
+function liveDebuggerUrl(rule: unknown, sample: unknown): string {
+  try {
+    const packed = msgpackEncode({ l: rule, d: sample });
+    const compressed = deflateSync(packed, { level: 9 });
+    const s = Buffer.from(compressed).toString('base64url');
+    return `${PLAYGROUND_URL}?s=${s}`;
+  } catch {
+    return PLAYGROUND_URL;
+  }
+}
+const liveUrl = liveDebuggerUrl(logic, data);
+---
+
+<figure class:list={['dl-fig', { 'full-bleed': fullBleed }]}>
+  <div class="dl-stage">
+    <div
+      class:list={['playground-widget', `dl-${mode}`]}
+      data-logic={JSON.stringify(logic)}
+      data-data={JSON.stringify(data)}
+      data-height={height}
+      data-theme="dark"
+      data-editable={String(editable)}
+      style={`min-height:${skeletonMinHeight}`}
+    >
+      <div class="dl-skeleton">
+        <span class="dl-skeleton-spinner" aria-hidden="true"></span>
+        <span>Loading the interactive playground…</span>
+        <a href={liveUrl} target="_blank" rel="noopener">
+          or open the live playground ↗
+        </a>
+      </div>
+    </div>
+
+    {/* Overlay actions — siblings of the mount node so React never clears them. */}
+    <div class="dl-corner">
+      <a
+        class="dl-icon"
+        href={REPO_URL}
+        target="_blank"
+        rel="noopener"
+        title="View datalogic-rs on GitHub"
+        aria-label="View datalogic-rs on GitHub"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 0-.29-.01-1.04-.02-2.05-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5.99.11-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.21.7.82.58A12 12 0 0 0 24 12.5C24 5.87 18.63.5 12 .5z" />
+        </svg>
+      </a>
+      <a
+        class="dl-icon"
+        href={liveUrl}
+        target="_blank"
+        rel="noopener"
+        title="Open this rule in the full-screen debugger"
+        aria-label="Open this rule in the full-screen live debugger"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 3h6v6" />
+          <path d="M9 21H3v-6" />
+          <path d="M21 3l-7 7" />
+          <path d="M3 21l7-7" />
+        </svg>
+      </a>
+    </div>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<script>
+  // The vendored embed ES module (default export → DataLogicEmbed API).
+  const BUNDLE_BASE = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/assets/datalogic`;
+  let bundlePromise: Promise<any> | null = null;
+
+  function loadBundle(): Promise<any> {
+    if (bundlePromise) return bundlePromise;
+    bundlePromise = new Promise((resolve, reject) => {
+      if (!document.querySelector('link[data-datalogic-css]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `${BUNDLE_BASE}/datalogic-embed.css`;
+        link.setAttribute('data-datalogic-css', '');
+        document.head.appendChild(link);
+      }
+      // Inject as a module <script> at runtime (the .mjs sets window.DataLogicEmbed
+      // on load). A literal `import()` here would be rewritten by Vite into a
+      // __VITE_PRELOAD__ helper that breaks for a public asset; a runtime-set
+      // src is left untouched, and `type="module"` keeps `import.meta` valid.
+      const s = document.createElement('script');
+      s.type = 'module';
+      s.src = `${BUNDLE_BASE}/datalogic-embed.mjs`;
+      s.onload = () => resolve((window as any).DataLogicEmbed);
+      s.onerror = () => reject(new Error('Failed to load the datalogic embed module'));
+      document.head.appendChild(s);
+    });
+    return bundlePromise;
+  }
+
+  function mount(el: HTMLElement) {
+    if (el.dataset.dlMounted) return;
+    el.dataset.dlMounted = '1';
+    loadBundle()
+      .then((embed) => {
+        if (!embed) throw new Error('DataLogicEmbed global missing');
+        el.replaceChildren(); // drop the skeleton; React renders into a clean node
+        embed.renderWidget(el);
+      })
+      .catch((err) => {
+        delete el.dataset.dlMounted;
+        el.closest('.dl-fig')?.classList.add('dl-failed');
+        console.error('[LogicPlayground]', err);
+      });
+  }
+
+  function boot() {
+    const widgets = Array.from(document.querySelectorAll<HTMLElement>('.playground-widget'));
+    if (!widgets.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+      widgets.forEach(mount); // no lazy support → mount eagerly
+      return;
+    }
+
+    // Lazy: only fetch the ~2.8MB bundle + mount when a widget nears the viewport.
+    const io = new IntersectionObserver(
+      (entries, obs) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            obs.unobserve(entry.target);
+            mount(entry.target as HTMLElement);
+          }
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    widgets.forEach((w) => io.observe(w));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+</script>
+
+<style>
+  .dl-fig {
+    margin: 2rem 0;
+  }
+  .dl-fig figcaption {
+    display: block;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 0.6rem;
+  }
+  /* Break out of the 820px article column (no existing full-bleed util). */
+  .dl-fig.full-bleed {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+  }
+  /* Positioning context for the overlay icons; also centres the full-bleed
+     widget so the corner aligns to the widget edge (not the 100vw figure). */
+  .dl-stage {
+    position: relative;
+  }
+  .dl-fig.full-bleed .dl-stage {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .playground-widget {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .dl-fig.full-bleed .playground-widget {
+    border-radius: 12px;
+  }
+
+  /* Overlay action icons (top-right): GitHub repo + open-in-full-debugger. */
+  .dl-corner {
+    position: absolute;
+    top: 0.55rem;
+    right: 0.55rem;
+    display: flex;
+    gap: 0.4rem;
+    z-index: 6;
+  }
+  .dl-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.95rem;
+    height: 1.95rem;
+    border-radius: 7px;
+    color: var(--muted);
+    background: rgba(20, 21, 26, 0.7);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(4px);
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .dl-icon:hover {
+    color: var(--fg);
+    background: var(--surface-2);
+    border-color: var(--muted);
+  }
+  .dl-icon svg {
+    width: 1rem;
+    height: 1rem;
+    display: block;
+  }
+
+  /* Pre-mount / no-JS / failed fallback. */
+  .dl-skeleton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: inherit;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .dl-skeleton a { color: var(--accent); }
+  .dl-skeleton-spinner {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    animation: dl-spin 0.8s linear infinite;
+  }
+  .dl-failed .dl-skeleton-spinner {
+    display: none;
+  }
+  @keyframes dl-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+
+<style is:global>
+  /* The embed bundle ships its own (global) class names. Minimal mode hides the
+     flow diagram so the compact widgets stay rule → data → result, and the full
+     visual debugger is saved for the full-bleed reveal. */
+  .dl-minimal .widget-diagram-row {
+    display: none !important;
+  }
+  /* With the diagram hidden, let the widget shrink to fit its content instead of
+     honouring the hardcoded inline height (which would leave dead space). */
+  .dl-minimal .datalogic-widget {
+    height: auto !important;
+  }
+
+  /* Minimal layout: Logic | Data on row 1 (two columns), Result on row 2. */
+  .dl-minimal .widget-input-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    height: auto !important;
+  }
+  .dl-minimal .widget-column {
+    height: auto !important;
+  }
+  .dl-minimal .widget-column:nth-child(1) {
+    border-right: 1px solid var(--dl-border, #2a2d36) !important;
+  }
+  .dl-minimal .widget-column:nth-child(2) {
+    border-right: none !important;
+  }
+  .dl-minimal .widget-column:nth-child(3) {
+    /* Result spans the full width on its own row. */
+    grid-column: 1 / -1 !important;
+    border-top: 1px solid var(--dl-border, #2a2d36) !important;
+  }
+
+  /* Logic / Data editors: FIXED height with an inner scrollbar when the rule or
+     data is taller — they do not grow as you type. The highlighted <pre> and the
+     transparent <textarea> stay overlaid (the embed default) and scroll in sync;
+     identical text layout keeps the caret on the visible text. */
+  .dl-minimal .json-editor {
+    height: 14rem !important;
+    flex: none !important;
+    overflow: hidden !important;
+  }
+  /* Caret alignment (both modes): the highlighted <pre> and the transparent
+     <textarea> must share identical text layout, else the caret drifts. */
+  .playground-widget .json-editor-highlight,
+  .playground-widget .json-editor-input {
+    white-space: pre-wrap !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+  /* Only the textarea on top shows a scrollbar; hide the synced overlay's. */
+  .playground-widget .json-editor-highlight {
+    scrollbar-width: none !important;
+  }
+  .playground-widget .json-editor-highlight::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* Result: fixed height (~4 lines), independent of content; scrolls if longer. */
+  .dl-minimal .widget-result {
+    height: 7rem !important;
+    flex: none !important;
+    overflow: auto !important;
+  }
+
+  /* Full debugger: match the live playground — the editor panel (Logic / Data /
+     Result, stacked) sits on the LEFT and takes only 1/4 of the width, leaving
+     the remaining 3/4 to the visual flow diagram on the RIGHT. */
+  .dl-full .datalogic-widget {
+    flex-direction: row !important;
+  }
+  .dl-full .widget-input-row {
+    flex: 0 0 25% !important;
+    width: 25% !important;
+    height: 100% !important;
+    flex-direction: column !important;
+    border-bottom: none !important;
+    border-right: 1px solid var(--dl-border, #2a2d36) !important;
+  }
+  .dl-full .widget-column {
+    min-height: 0 !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--dl-border, #2a2d36) !important;
+  }
+  /* Logic and Data: fixed heights, each scrolling its own content. */
+  .dl-full .widget-column:nth-child(1) {
+    flex: 0 0 auto !important;
+    height: 16rem !important;
+  }
+  .dl-full .widget-column:nth-child(2) {
+    flex: 0 0 auto !important;
+    height: 11rem !important;
+  }
+  /* Result: pinned to the bottom of the panel; its height follows the text and
+     grows upward (margin-top:auto absorbs the free space above it). */
+  .dl-full .widget-column:nth-child(3) {
+    flex: 0 0 auto !important;
+    margin-top: auto !important;
+    border-bottom: none !important;
+    border-top: 1px solid var(--dl-border, #2a2d36) !important;
+  }
+  .dl-full .widget-result {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 2.4rem !important;
+    max-height: 10rem !important;
+    overflow: auto !important;
+  }
+  /* Diagram fills the remaining 3/4 of the width at full height. */
+  .dl-full .widget-diagram-row {
+    flex: 1 1 0 !important;
+    height: 100% !important;
+    min-width: 0 !important;
+  }
+</style>

@@ -88,8 +88,10 @@ const maxw = width === 'home' ? '1080px' : width === 'post' ? '820px' : '700px';
         font-size: 0.86em;
         font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
-      /* Shiki code blocks (.astro-code) keep their own bg; we add the chrome */
-      pre.astro-code, pre:not(.astro-code) {
+      /* Shiki code blocks (.astro-code) keep their own bg; we add the chrome.
+         Exclude .json-highlight so the datalogic playground's own <pre> overlays
+         (LogicPlayground) keep their editor styling instead of code-block chrome. */
+      pre.astro-code, pre:not(.astro-code):not(.json-highlight) {
         padding: 1rem 1.15rem;
         border-radius: var(--radius);
         border: 1px solid var(--border);

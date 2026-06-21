@@ -1,0 +1,242 @@
+---
+title: "Business Logic as Rules: Written by LLMs, Run at Native Speed"
+date: 2026-06-12T10:00:00.000Z
+slug: "business-logic-as-rules-written-by-llms"
+excerpt: "Business logic doesn't want to be code, it wants to be data. With JSONLogic, an LLM writes the rule once, a human reviews it as a flow diagram, and a deterministic engine runs it in single-digit nanoseconds everywhere. The story of datalogic-rs."
+tags: ["Rust", "JSONLogic", "AI", "LLM", "Programming", "Open Source"]
+featureImage: "/blog/assets/images/2026/06/datalogic-visual-debugger.png"
+draft: true
+---
+import LogicPlayground from '../../components/LogicPlayground.astro';
+
+In just about every microservice you've shipped, there's a piece of business logic with a constant that shouldn't be there. An `18`, a `0.85`, or simply `"Welcome, ${name}"`. It's the minimum age, the free-shipping threshold, the fraud score that trips a manual review, or a bit of greeting copy. A business decision, hardcoded into an `if` statement. When the business changes its mind, that one-character change becomes a pull request, a review, a deploy, and a slot in next week's release.
+
+Business logic like this doesn't want to be code. It wants to be **data**, something you can store in a database, change through an API, version, audit, and ship without a redeploy. That's why we evolved to keeping those constants as database entries, cached for speed. But most of the time we end up with hundreds of such constants, all stuffed into key-value pairs in some datastore that loads nicely on boot. And it's not always the constants that change. Often it's the entire logic that changes. In e-commerce, I can guarantee that a decent product team will change the pricing logic multiple times a quarter: just before a seasonal sale, just before a new campaign. And the fight starts. Engineering says the release can happen in a couple of weeks. Product says D-day is in 3 days and we needed it yesterday. I've played the engineering manager who said that, and the product manager who argued back. Trust me, both teams are right.
+
+The real fix isn't a faster release train. It's making the logic *itself* into data, not just the constants it hangs on. That's the whole idea behind [JSONLogic](https://jsonlogic.com): rules expressed as JSON. `{">=": [{"var": "age"}, 18]}` isn't a function you wrote, it's a value you can move around.
+
+And yes, rule engines aren't new. They go back to the 80s, but those were huge centralized systems that services called over the network for every decision. We're not talking about those. We mean a lightweight engine you embed and call inline. That idea has been quietly useful for years. What makes it *urgent* now is that the best author of structured data we've ever had just showed up. Large language models (LLMs) are exceptional at exactly one thing we need here: emitting constrained, well-formed JSON. Tell a model *"customers in California over 18 who've spent more than $500 get free shipping,"* and it can hand you back a rule, not a paragraph of Python you have to read, sandbox, and trust, but a small, inspectable, deterministic rule you can test, trace, and run. **The model writes the logic once; a deterministic engine runs it forever.**
+
+And think about the classic case where the same business logic has to live in more than one microservice, like discount logic. One change drags multiple teams across a few release cycles, depending on the service dependencies. That's exactly where JSONLogic earns its place, and why rules-as-data is the right shape for business logic in the age of LLMs.
+
+*A bit about where I'm coming from: I'm the original author and maintainer of datalogic-rs, a Rust implementation of JSONLogic, and I'm part of the JSONLogic community that works on the spec, the maturity of the shared test suite, and contributions across the different language libraries.*
+
+## Business logic as rules, not code
+
+So what does one of these rules actually look like? Here's the whole trick: every JSONLogic rule is a JSON object with a single key. The key is the operator, and the value is the list of arguments you hand it.
+
+```json
+{ ">": [{ "var": "cartTotal" }, 100] }
+```
+
+Read that out loud and it's "is `cartTotal` greater than 100?" The `>` is the operator. The `var` operator is how a rule reaches into your data and pulls out a value. So if you evaluate that rule against this data:
+
+```json
+{ "cartTotal": 150 }
+```
+
+`var` grabs `150`, `>` compares it to `100`, and you get back `true`. That's the entire model. A rule is a tree, your data is the input, and evaluating one against the other gives you an answer.
+
+Rules nest, which is where they start to feel like real logic. Wrap a few comparisons in an `and` or an `or` and you've written a policy:
+
+```json
+{
+  "and": [
+    { ">": [{ "var": "cartTotal" }, 100] },
+    { "==": [{ "var": "member" }, true] }
+  ]
+}
+```
+
+"Over 100 and a member." There's a comparison operator for the usual suspects (`==`, `!=`, `<`, `>`, `<=`, `>=`), arithmetic (`+`, `-`, `*`, `/`, `%`), and once you're working with lists, `map`, `filter`, and `reduce` to run a rule across every item. That's most of it. The whole specification is a couple dozen operators, `var`, and nesting.
+
+And that smallness is the point. There's no new syntax to learn and no parser of your own to write. Because the rule is just data, the same rule a developer types by hand is one a product manager can tweak in a form, or a model can generate from a sentence. The hard part was never the spec. The hard part is running these rules fast, running them identically in every language you ship, and trusting a rule you didn't write yourself. That's the rest of this post.
+
+## Meet datalogic-rs
+
+Those three hard parts, fast, everywhere, and trustworthy, are what I've spent the last couple of years on. The engine is called datalogic-rs. It's a JSONLogic implementation written in Rust, and it's the thing running every example in this post.
+
+Two things about it matter before we go further. First, it follows the JSONLogic spec faithfully, the same operators behaving the same way the reference implementation does, so a rule you write here is a rule that runs anywhere JSONLogic runs. Second, it adds a few capabilities on top of the spec when they earn their place: a templating mode, date and time operators, error handling, and a way to register your own operators. I'll flag those extensions as we hit them, so you always know what's core JSONLogic and what's datalogic-rs on top.
+
+That's all you need for now. The deeper story of how it got here, and how it ends up running the same rule in single-digit nanoseconds in every language your stack speaks, comes later. First, let's see what you can actually do with it.
+
+## Three things you build with rules-as-data
+
+Once logic is data, the same little engine ends up doing three different jobs. They look unrelated at first, but they're the same idea wearing different hats.
+
+**Decisioning.** This is the obvious one, and it's where most people start. Should this user see the new checkout flow? Does this order qualify for the discount? Is this transaction risky enough to hold for review? Every one of those is a yes or no question, and every one of them changes constantly. Put the rule in a database and your fraud team can tighten a threshold on a Tuesday afternoon without filing a ticket with engineering. Access control, feature flags, eligibility, validation: it's all the same shape, a rule that looks at some data and returns true or false.
+
+```json
+{ "and": [
+  { ">=": [{ "var": "account.ageDays" }, 30] },
+  { "<":  [{ "var": "order.refundRate" }, 0.2] }
+]}
+```
+
+Here's that exact rule, live. Edit the data on the right and watch the answer flip — a 20-day-old account, or a refund rate of `0.3`, drops it to `false`.
+
+<LogicPlayground
+  logic={{ "and": [
+    { ">=": [{ "var": "account.ageDays" }, 30] },
+    { "<":  [{ "var": "order.refundRate" }, 0.2] }
+  ]}}
+  data={{ account: { ageDays: 90 }, order: { refundRate: 0.05 } }}
+  caption="Decisioning: a rule that reads some data and returns true or false."
+/>
+
+**Templating.** This one surprises people, and it's the first of those datalogic extensions I just mentioned. Base JSONLogic judges data; it doesn't reshape it. Turn on templating mode and the structure of your rule becomes the structure of your output: object keys pass straight through, and the operators inside compute the values. It's how you take one payload and produce another, which is most of what an integration layer does all day. Map a partner's webhook into your own schema, build a response object field by field, or stitch a couple of values into a greeting.
+
+```json
+{
+  "greeting": { "cat": ["Hi ", { "var": "firstName" }] },
+  "isVip":    { ">":  [{ "var": "lifetimeSpend" }, 1000] }
+}
+```
+
+**Safe expression evaluation.** Sooner or later you want to let your users do math. A pricing formula, a custom alert condition, a column in a low-code tool that's really just `subtotal + tax + shipping`. The moment you reach for `eval()` to make that work, you've handed a stranger the keys to your process. JSONLogic gives you the same flexibility without the open door, because a rule can't do anything except read data and return a value. Arithmetic, comparisons, and array reductions are all there, so a `reduce` over a cart or a `filter` on a list works exactly the way you'd hope.
+
+Three jobs, one engine. And here's the thread that ties this whole post together: in all three, the rule is just a piece of JSON that somebody wrote. For years that somebody was a developer, or on a good day a product manager poking at a form. What happens when the somebody is a model? That's the next section.
+
+## The shift: let LLMs write the rules, not the code
+
+Here's the obvious objection, and I want to deal with it head on. If a model can write code now, why would I want it writing some JSON rule dialect instead? Just have it write the Python or JS.
+
+It's a fair question, and the answer is the most important idea in this post. You don't want a model writing the code that runs in production. You want it writing the rule, and you want a boring, deterministic engine running that rule. Those are two different jobs, and keeping them apart is the whole trick.
+
+Let me show you what I mean. Take that free-shipping line from the top of the post and hand it to a model:
+
+> *customers in California over 18 who've spent more than $500 get free shipping*
+
+Here's what comes back:
+
+```json
+{
+  "and": [
+    { "==": [{ "var": "customer.state" }, "CA"] },
+    { ">":  [{ "var": "customer.age" }, 18] },
+    { ">":  [{ "var": "customer.lifetimeSpend" }, 500] }
+  ]
+}
+```
+
+That's not a screenshot — it's the model's rule, running. Change the state to `"NY"`, drop the spend below `500`, and the free-shipping decision flips in real time. No model in the loop anymore, just the engine.
+
+<LogicPlayground
+  logic={{
+    "and": [
+      { "==": [{ "var": "customer.state" }, "CA"] },
+      { ">":  [{ "var": "customer.age" }, 18] },
+      { ">":  [{ "var": "customer.lifetimeSpend" }, 500] }
+    ]
+  }}
+  data={{ customer: { state: "CA", age: 27, lifetimeSpend: 820 } }}
+  caption="The rule an LLM wrote from one English sentence — now a deterministic check you can run a billion times."
+/>
+
+And here's the part that pays off the whole idea. The model did its work the moment it wrote that rule. After that, the model is gone. Every order that comes in is checked by the engine, not the model: no token cost, no API round-trip, no nondeterminism, and in datalogic-rs's case a few nanoseconds per check. That's the architecture that actually makes sense for AI in production. Let the model do the slow, expensive, creative part one time, off to the side, and let a cheap deterministic engine do the fast part a billion times. You never want an LLM in your request hot path. You want its output sitting there instead.
+
+So the model writes the rule once. The only question left is whether you can trust the thing it wrote, and this is where a rule beats a block of code on every axis that matters.
+
+**It can't hurt you.** That rule reads three fields and returns a boolean. It can't open a file, make a network call, read an environment variable, or shell out, because there's nothing in the language that can. Compare that to a model handing you Python and you running it: one of those you can take from an untrusted author and drop straight into production, the other is a prompt injection waiting to happen. When the author is a stochastic model, the gap between "worst case, a wrong answer" and "worst case, code running on my server" is the entire ballgame.
+
+**It's the one thing models are genuinely reliable at.** Every serious model API now ships a structured-output mode: JSON mode, tool calls, constrained decoding. The whole industry has spent the last couple of years making models emit well-formed JSON against a schema. JSONLogic is JSON with a small, fixed vocabulary, so you're not asking the model to be a correct programmer in a Turing-complete language. You're asking it to fill in a shape from a couple dozen building blocks, against a schema you can validate before you ever run it. Smaller target, fewer places to be subtly wrong.
+
+**You can actually see it.** This is my favorite part, and it's where the rule stops being text. Because the rule is structured data, the datalogic-rs web UI paints it as a flow diagram: every operator becomes a node, every argument a branch, the whole policy drawn as a tree of connected boxes. A code review of an AI-written rule stops looking like a code review. Nobody is squinting at a diff of nested brackets; the reviewer is looking at a picture of the logic and following the branches with their eyes. Hand it some sample data and the UI runs the rule and lights up the path the evaluation actually took, node by node, with the value at each step, so you can watch a "declined" decision walk through the exact comparisons that produced it. Try getting that out of a paragraph of generated code. In fintech or insurance or healthcare, "show me why this customer was declined" isn't a nice-to-have, it's the audit, and the rule answers it for free. (More on that debugger later.) And because the structure runs both ways, the model can turn the rule back into a plain sentence for anyone who'd rather read "California customers over 18 who have spent more than $500" than the JSON.
+
+That's true today, and it's more true for where this is heading. The systems people are most excited about right now are agentic: software that proposes changes to its own behavior. An agent that wants to adjust a pricing rule needs a representation it can read, change, and write back, with a human approving the diff before it ships. Arbitrary code is a miserable fit for that loop. A small, inspectable, sandboxed rule is a perfect one. "Rules are data" was always the quiet point of JSONLogic. Models writing those rules is what turns it from a nice property into the reason you'd reach for it.
+
+## The road to v5, and native speed that gets out of your way
+
+I've been building and maintaining datalogic-rs for a while now, and working inside the JSONLogic community the whole way: on the spec, on the shared test suite every implementation runs against, and across the libraries in other languages.
+
+It's more than two years since I started with datalogic-rs, and this is the fifth time I'm rewriting it from scratch. One reason I keep rewriting it is the need for changes in the core, based on what the users and the community that's grown around it keep asking for.
+
+v5 was a deliberate clean break. What matters is what the whole rewrite was pointed at: making a rule that an AI can generate cleanly, that a human can review at a glance, and that runs at native speed wherever you put it. Those three things are the entire reason v5 exists.
+
+The engine compiles a rule once into a small tree of opcodes, then runs that tree against your data. Compilation resolves every operator down to a single byte, so dispatch at run time is a `match`, not a string lookup. Values live in an arena that gets reused between runs, so a hot loop does almost no allocation. Operators like `var` read straight from your input instead of copying it out. The result is a compiled rule that evaluates in single-digit nanoseconds, about 9.7 ns on an Apple M2 Pro, which is roughly 5x faster than the next-fastest library in any language and far ahead of the other Rust and JavaScript implementations.
+
+But here's the part I actually care about, and it's not the benchmark. At single-digit nanoseconds, rule evaluation stops showing up in your latency budget at all. A single database round trip is a millisecond if you're lucky. In that same millisecond you could evaluate the rule a hundred thousand times over. The rule is never your bottleneck; the IO around it is. And that changes how you use it. You stop rationing rules, stop pushing them out of the request path, stop caching their results to save a few microseconds. You just run them, wherever you need them, as many as you need, because next to one network call they're free.
+
+Fast is table stakes once it's this fast. The more interesting question is where you can run it, and the answer is just about anywhere.
+
+## One rule, every runtime
+
+Remember the discount logic from the top of the post, the rule that had to live in more than one service? This is the part that fixes it.
+
+A JSONLogic rule is just JSON, so in principle it travels anywhere. The catch is that "anywhere" only works if every place you run it agrees on what the rule means. If your Node service and your Go service each carry their own JSONLogic implementation, you have two subtly different engines, and the day they disagree about how `>=` treats a null is the day you lose an afternoon you won't get back.
+
+datalogic-rs is built so that day never comes. There's one engine, written in Rust, and every other language is a thin shell over that same core. The Node package is a native build of it. The browser package is the same core compiled to WebAssembly. Python is a native extension. Go, Java, .NET, and PHP reach the same Rust through a shared C interface. Same operators, same edge cases, same answer, whether the rule runs on your server, in a browser tab, out on the edge, or inside a data pipeline. You write the rule once and it behaves the same everywhere, because underneath it's not a reimplementation, it's the exact same code.
+
+That's what holds the whole loop together. The rule an AI generates, the rule a reviewer steps through in the web UI, and the rule that runs a million times a day in production aren't three versions of the same logic. They're one rule on one engine. The thing you reviewed is the thing that ships. No translation layer in the middle, nothing to drift out of sync, nothing that behaves one way in the editor and another way in the request. For business logic that has to live in more than one place, and most of it does eventually, that's the difference between a single source of truth and a standing bug waiting to happen.
+
+There's one piece of this I've only shown you from a distance: the review itself. Let's fix that.
+
+## Trusting a rule you didn't write
+
+Earlier I said you could see a rule as a diagram and watch the path light up. That was the postcard version. Up close, it's a debugger, and it behaves like one.
+
+So here it is, the whole thing, running on this page. This rule sums a cart with `reduce`, checks the total against a threshold, and only then asks whether the customer is a member. Hit play and watch the evaluation walk the tree; the `reduce` steps once per cart item. Change the prices, flip `member` to `false`, or edit the rule itself, and run it again.
+
+<LogicPlayground
+  mode="full"
+  fullBleed
+  editable
+  logic={{
+    "if": [
+      { "and": [
+        { ">": [
+          { "reduce": [
+            { "var": "cart.items" },
+            { "+": [ { "var": "accumulator" }, { "*": [ { "var": "current.price" }, { "var": "current.qty" } ] } ] },
+            0
+          ] },
+          100
+        ] },
+        { "var": "customer.member" }
+      ] },
+      "10% loyalty discount",
+      "no discount"
+    ]
+  }}
+  data={{
+    cart: { items: [ { price: 40, qty: 2 }, { price: 25, qty: 1 } ] },
+    customer: { member: true }
+  }}
+  caption="The full visual debugger — edit the rule or data on the left, press play, and step through the trace node by node."
+/>
+
+Give the editor a rule and a row of data and it doesn't just show you the answer. It records every step the engine took to get there and lets you walk through them. Press play and the evaluation runs as an animation, node by node, the way a debugger steps through code. Pause it. Step forward one operator at a time, or step backward, because the whole trace is captured up front, so you can move through it in either direction as many times as you like. Each node, as you land on it, shows the slice of data it was looking at and the value it returned. Branches that fired light up; branches that were skipped stay dim. A node that hit an error is flagged, with the error attached. If the rule loops over a list with `map` or `filter`, you can step it one item at a time and watch each pass.
+
+This is the part that turns "the AI wrote a rule" into something you can actually sign off on. You don't trust the rule because you trust the model. You trust it because you fed it ten real customers, watched all ten walk through the logic, and saw the right branch fire every time. And when the trace shows you something wrong, you're already in the right place to fix it: the diagram is editable, so you can change an operator or a threshold right there and run it again, no trip back to a code editor.
+
+You don't even have to install anything to try it. There's a live playground on the web where you paste a rule and some data and start stepping, no setup at all.
+
+And none of this is a trick of the UI. The trace comes from the engine itself, and it lives in every binding, not just the browser. So the step-through you see in the playground is something you can pull into your own tools: an admin page that explains a declined application to a support agent, an internal console that shows why a transaction was held, a test that asserts not just the answer but the path it took to get there. The visual debugger is the version we ship. The trace underneath it is yours to build on.
+
+That's what it means to trust a rule you didn't write: not faith in the model, but a button you press to watch the thing run, on your data, until you believe it. Which leaves one honest question. Why this engine, and not one of the others?
+
+## Why reach for datalogic-rs
+
+I've spent this whole post on the why. If you're the one who actually has to pick the dependency, here's the short version, including a few boring things I haven't said yet that matter more than the exciting ones.
+
+**It's correct.** datalogic-rs passes the shared JSONLogic test suite, the same conformance tests every serious implementation is measured against, so a rule does what the spec says, not what one library decided. And where the spec leaves room, the engine lets you choose: how NaN behaves, what division by zero does, which values count as truthy, how numbers coerce. The edge cases that usually bite you are configuration, not surprises.
+
+**It's safe.** The core is written with `#![forbid(unsafe_code)]`, so there's no hand-rolled unsafe Rust in the evaluation path. And as you saw, a rule can't do anything but read data and return a value, so untrusted logic, a model's included, has nothing to grab onto.
+
+**It's complete.** Fifty-nine built-in operators, the spec's core plus datalogic-rs's extensions, cover comparison, arithmetic, strings, arrays, and the OpenFeature flagd operators if you do feature flagging. When the built-ins run out, you can register your own operator, in any of the bindings, and it slots in next to the rest. Templating, dates, and error handling are there when you need them and out of your way when you don't.
+
+**It's fast, and it's everywhere.** Single-digit nanoseconds per rule, one Rust core behind every language your stack speaks, and a visual debugger to review what runs. You've read all three already.
+
+**And it's real.** Apache 2.0, actively maintained, and built by people who sit in the JSONLogic community and help shape the spec itself. It's not a weekend project you're betting your decisioning on. It's the thing I work on, and the thing I'd reach for.
+
+## Where this leaves us
+
+Go back to that constant from the very beginning, the `18` or the `0.85` buried in an `if` statement, the one that turned a change of mind into a pull request and a deploy. Everything in this post was about getting that decision out of your code and into a place where it can actually move.
+
+Here's where it lands. The logic is data now, a small rule you can store, version, and change without shipping anything. An AI can write that rule from a sentence, because a rule is the kind of small, constrained JSON a model is genuinely good at. A human can review it as a picture and step through it on real data, so you trust what the model wrote without trusting the model. And the exact rule you approved runs everywhere your stack lives, at a speed where it never shows up in your latency budget at all. The fight between the product team that needs it today and the engineering team that needs two weeks gets a lot quieter when the change is a rule, not a release.
+
+That's the shift worth taking away. The future of business logic isn't an LLM sitting in your request path, answering the same question a million times and charging you for each one. It's an LLM writing the rule once, a human signing off on it, and a deterministic engine running it a billion times for free. AI at the edges, where it's creative and slow. A boring, fast engine in the middle, where you need it to be exactly right.
+
+If any of this landed, go try it. The playground at [goplasmatic.github.io/datalogic-rs/playground](https://goplasmatic.github.io/datalogic-rs/playground/) is the whole post on one page: ask a model for a rule in plain English, drop it in, and watch it run. When you want it in your own stack, it's one line away: `cargo add datalogic-rs`, `npm i @goplasmatic/datalogic-node`, `pip install datalogic-py`, and the same for Go, Java, .NET, and PHP. The code is open and the docs are there when you need them.
+
+That constant never belonged in your code. Now it does not have to be.

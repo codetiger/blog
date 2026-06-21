@@ -1,0 +1,288 @@
+---
+title: "Stop Building a Microservice for Every Business Rule"
+date: 2026-06-13T10:00:00.000Z
+slug: "declare-the-service-let-ai-write-it"
+excerpt: "Business logic doesn't want to be code, and the service around it doesn't want to be a repo of its own. Declare the service as JSON, let an AI write it, and let one runtime run it, with observability, rate limiting, retries, and versioning already on. The story of Orion."
+tags: ["Rust", "Orion", "Microservices", "AI", "LLM", "JSONLogic", "Open Source"]
+# TODO: replace with an Orion-branded hero image before un-drafting.
+# Original article used datalogic-visual-debugger.png, which doesn't fit Orion.
+featureImage: "/blog/assets/images/2026/06/orion-declarative-runtime.png"
+draft: true
+---
+import LogicPlayground from '../../components/LogicPlayground.astro';
+
+In just about every microservice you've shipped, there's a piece of business logic with a constant that shouldn't be there. An `18`, a `0.85`, or simply `"Welcome, ${name}"`. It's the minimum age, the free-shipping threshold, the fraud score that trips a manual review, or a bit of greeting copy. A business decision, hardcoded into an `if` statement. When the business changes its mind, that one-character change becomes a pull request, a review, a deploy, and a slot in next week's release.
+
+But the constant is only the small half of the problem. Look one level up. To hold that `if`, you stood up an entire service: a repo, a Dockerfile, a CI pipeline, health checks, metrics, rate limiting, a deployment manifest, an on-call rotation. A business rule that fits on one line is wearing the full costume of a production system. And in e-commerce I can guarantee a decent product team will change the pricing logic multiple times a quarter: just before a seasonal sale, just before a new campaign. The fight starts. Engineering says the release can happen in a couple of weeks. Product says D-day is in 3 days and we needed it yesterday. I've played the engineering manager who said that, and the product manager who argued back. Trust me, both teams are right.
+
+The real fix isn't a faster release train. It's getting the logic *and* the service out of the code, into a place where they can actually move. This post is about a runtime that does exactly that.
+
+## Two things want to be data
+
+The first move is the one [JSONLogic](https://jsonlogic.com) figured out years ago: business logic doesn't want to be code, it wants to be **data**. `{">=": [{"var": "age"}, 18]}` isn't a function you wrote, it's a value you can store in a database, change through an API, version, audit, and ship without a redeploy.
+
+But a rule on its own isn't a service. The second move is the one most teams never make: the *service* around the rule, the HTTP endpoint, the input validation, the rate limiting, the retries, the metrics, the circuit breaker on the downstream call, all of that wants to be data too. It wants to be **declared**, not built. You shouldn't have to write, deploy, and operate a brand-new microservice just to expose a rule to the world with the production features it needs to survive contact with traffic.
+
+That's the whole idea behind **Orion**: a declarative services runtime for the AI era. Instead of writing, deploying, and operating a microservice for every piece of business logic, you *declare* what the service should do, as JSON, and Orion runs it. Architectural governance, observability, rate limiting, circuit breakers, versioning, input validation, and more, is built into every service, not bolted on. And because the unit of work is a small, structured declaration rather than a program, you can hand the writing of it to a model. **AI generates the workflow; Orion provides the governance.**
+
+*A bit about where I'm coming from: I'm the original author and maintainer of datalogic-rs, a Rust implementation of JSONLogic, and part of the JSONLogic community that works on the spec and the shared test suite. Orion is what I built on top of that engine, the part that turns a rule into a running, governed service.*
+
+## Meet Orion: channels, workflows, connectors
+
+You build services in Orion with exactly three things.
+
+| Primitive | What it is | Example |
+|-----------|-----------|---------|
+| **Channel** | A service endpoint: sync (REST, HTTP) or async (Kafka) | `POST /orders`, `GET /users/{id}`, Kafka topic `order.placed` |
+| **Workflow** | A pipeline of tasks that defines what the service does | parse → validate → enrich → transform → respond |
+| **Connector** | A named connection to an external system, with auth and retries | Stripe API, PostgreSQL, Redis, Kafka cluster |
+
+The workflow is where your logic lives. It's bigger than a single rule, it's a sequence of tasks, each one a small named function with an `input`, and each one optionally gated by a JSONLogic `condition`. Here's a real one: flag any order over $10,000 for manual review.
+
+```json
+{
+  "workflow_id": "high-value-order",
+  "name": "High-Value Order",
+  "condition": true,
+  "tasks": [
+    { "id": "parse", "name": "Parse payload", "function": {
+        "name": "parse_json", "input": { "source": "payload", "target": "order" }
+    }},
+    { "id": "flag", "name": "Flag order",
+      "condition": { ">": [{ "var": "data.order.total" }, 10000] },
+      "function": { "name": "map", "input": { "mappings": [
+        { "path": "data.order.flagged", "logic": true },
+        { "path": "data.order.alert",   "logic": { "cat": ["High-value order: $", { "var": "data.order.total" }] } }
+      ]}}
+    }
+  ]
+}
+```
+
+To make it a live service, you `POST` the workflow, activate it, then point a channel at it:
+
+```bash
+# Create the workflow, then activate it
+curl -s -X POST  http://localhost:8080/api/v1/admin/workflows -d '{...}'
+curl -s -X PATCH http://localhost:8080/api/v1/admin/workflows/high-value-order/status -d '{"status":"active"}'
+
+# Create the endpoint that runs it
+curl -s -X POST  http://localhost:8080/api/v1/admin/channels -d '{
+  "channel_id": "orders", "name": "orders", "channel_type": "sync",
+  "protocol": "rest", "route_pattern": "/orders", "methods": ["POST"],
+  "workflow_id": "high-value-order" }'
+curl -s -X PATCH http://localhost:8080/api/v1/admin/channels/orders/status -d '{"status":"active"}'
+```
+
+Send it a request and the service is live:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/data/orders \
+  -d '{ "data": { "order_id": "ORD-9182", "total": 25000 } }'
+```
+```json
+{ "status": "ok", "data": { "order": {
+  "order_id": "ORD-9182", "total": 25000,
+  "flagged": true, "alert": "High-value order: $25000"
+}}}
+```
+
+No repo. No Dockerfile. No CI pipeline. The endpoint came with rate limiting, metrics, health checks, and request tracing already on. And the part that ends the product-vs-engineering fight: **change the threshold? One API call. No rebuild, no redeploy, no restart.**
+
+## The engine underneath (where the rules live)
+
+Look back at that workflow and you'll spot the same `{">": [...]}` shapes from the top of the post. That's not a coincidence. Every `condition` that gates a task, and every `logic` expression inside a `map`, is **JSONLogic**, the rules-as-data language. Orion uses it as the glue for all dynamic logic: task conditions, field mappings, validation rules, even rate-limit keys.
+
+So when you want to *see* a rule behave, you can run the exact dialect Orion runs, right here. Here's a task condition, live. Edit the data on the right and watch the answer flip, a 20-day-old account, or a refund rate of `0.3`, drops it to `false`.
+
+<LogicPlayground
+  logic={{ "and": [
+    { ">=": [{ "var": "account.ageDays" }, 30] },
+    { "<":  [{ "var": "order.refundRate" }, 0.2] }
+  ]}}
+  data={{ account: { ageDays: 90 }, order: { refundRate: 0.05 } }}
+  caption="A JSONLogic task condition, the same dialect Orion evaluates to decide whether a task runs."
+/>
+
+Transforms work the same way. An Orion `map` task takes a list of `{ "path", "logic" }` mappings, and the `logic` side is JSONLogic that computes each value, which is how a workflow reshapes one payload into another, the bread and butter of any integration layer:
+
+```json
+{ "name": "map", "input": { "mappings": [
+  { "path": "data.out.greeting", "logic": { "cat": ["Hi ", { "var": "data.in.firstName" }] } },
+  { "path": "data.out.isVip",    "logic": { ">":   [{ "var": "data.in.lifetimeSpend" }, 1000] } }
+]}}
+```
+
+Here's the nice part for your latency budget: under the hood, [datalogic-rs](https://github.com/GoPlasmatic/datalogic-rs) compiles each JSONLogic expression once, at engine-construction time, and evaluates it in single-digit nanoseconds. The logic layer is effectively free. Which means the thing you're actually buying isn't a faster `if`, it's everything wrapped *around* the rule: the endpoint, the governance, the runtime. That's the rest of this post.
+
+## Let the AI write the service, not the code
+
+Here's the obvious objection. If a model can write code now, why would I want it emitting some JSON workflow dialect instead? Just have it write the Python service.
+
+It's a fair question, and the answer is the most important idea here. You don't want a model writing the code that runs in production. You want it writing the *declaration*, and you want a boring, deterministic runtime running it. Those are two different jobs, and keeping them apart is the whole trick. Let the model do the slow, creative part once, off to the side, and let the runtime do the fast part a billion times. **You never want an LLM in your request hot path. You want its output sitting there instead.**
+
+And the model isn't writing into a vacuum. The Orion CLI ships an [MCP server](https://github.com/GoPlasmatic/Orion-cli) that hands your AI assistant the full Orion context: the workflow syntax, the available task functions, the connector types, the API operations. So you say what you need, in English, and it produces a valid workflow, no prompt engineering required:
+
+> *"Classify orders into VIP (≥500, 15% discount), Premium (100–500, 5%), and Standard tiers."*
+
+Why is a workflow a *better* thing to hand a model than a service?
+
+**It can't hurt you.** A workflow is declarative JSON over a fixed vocabulary of task functions. There's no `eval`, no shell, no arbitrary code, the model can't reach for a capability the language doesn't have. And it never sees a credential: connectors are referenced by *name*, with the secrets stored in Orion and masked in every API response. Compare that to a model handing you a Python service that you run: one of those you can take from an untrusted author and deploy, the other is a prompt injection waiting to happen.
+
+**It's the one thing models are genuinely reliable at.** Every serious model API now ships a structured-output mode. A workflow is JSON against a schema, so you're not asking the model to be a correct programmer in a Turing-complete language; you're asking it to fill in a shape. And before anything goes live, `POST /api/v1/admin/workflows/validate` checks the structure and hands back field-pathed errors, `tasks[0].function.input.connector` is required, `tasks[2].function.input.method` expected string, got number, so the editor jumps straight to the failing key.
+
+**You can sign off on it before it ships.** That's the next section, and it's where Orion does the heavy lifting.
+
+## Trusting a service you didn't write
+
+You don't trust an AI-written workflow because you trust the model. You trust it because Orion gives you a safe path from generated JSON to live traffic, and lets you bail at any step:
+
+```text
+1. Generate   →  AI produces the workflow JSON (full context from MCP)
+2. Validate   →  POST /api/v1/admin/workflows/validate      ← structural errors, field-pathed
+3. Create     →  POST /api/v1/admin/workflows               ← saved as a DRAFT, not live
+4. Dry-run    →  POST /api/v1/admin/workflows/{id}/test      ← run it on real sample data
+5. Activate   →  PATCH /api/v1/admin/workflows/{id}/status   ← goes live
+6. Rollout    →  PATCH /api/v1/admin/workflows/{id}/rollout  ← 10% → 50% → 100% of traffic
+```
+
+A new workflow is a **draft** by default, it isn't loaded into the engine until you explicitly activate it. So nothing the AI generated touches a single real request until you've watched it run. And the dry-run is the part that turns "the AI wrote a workflow" into something you can actually approve. Hand it representative data and it doesn't just return the answer, it returns the **trace**:
+
+```json
+{
+  "matched": true,
+  "trace": { "steps": [
+    { "task_id": "parse",       "result": "executed" },
+    { "task_id": "high_risk",   "result": "executed" },
+    { "task_id": "normal_risk", "result": "skipped"  }
+  ]},
+  "output": { "txn": { "amount": 50000, "risk_level": "high", "requires_review": true } }
+}
+```
+
+The trace shows exactly which tasks ran and which were skipped, and what the output looked like, before a single real transaction flows through. Feed it ten real customers, confirm the right branch fired for all ten, and you're done. And when you do flip it live, you don't have to flip it all the way: a rollout percentage sends 10% of traffic to the new version while the rest stays on the old one, and if the trace in production looks wrong, instant rollback to any previous version is one `PATCH`. Every workflow change is recorded with an incrementing version number and an audit trail.
+
+The same visibility is there at runtime, not just in the dry-run. Every request carries an `x-request-id` that propagates through logs and the response. Add `X-Orion-Profile: 1` and you get a per-task millisecond breakdown under an `_orion.profile` key. Turn on OpenTelemetry and you get distributed traces across every `http_call` and `channel_call` in the chain. "Show me why this order was held" stops being an archaeology project and becomes a trace you can read.
+
+If you'd rather *watch* the logic evaluate while you're authoring it, the JSONLogic engine inside each task has a step-through debugger you can run in the browser. Press play, and the evaluation walks the rule node by node: branches that fire light up, skipped ones stay dim, and each node shows the value it returned.
+
+<LogicPlayground
+  mode="full"
+  fullBleed
+  editable
+  logic={{
+    "if": [
+      { "and": [
+        { ">": [
+          { "reduce": [
+            { "var": "cart.items" },
+            { "+": [ { "var": "accumulator" }, { "*": [ { "var": "current.price" }, { "var": "current.qty" } ] } ] },
+            0
+          ] },
+          100
+        ] },
+        { "var": "customer.member" }
+      ] },
+      "10% loyalty discount",
+      "no discount"
+    ]
+  }}
+  data={{
+    cart: { items: [ { price: 40, qty: 2 }, { price: 25, qty: 1 } ] },
+    customer: { member: true }
+  }}
+  caption="The condition engine inside a task: edit the rule or data, press play, and step through the evaluation node by node. In Orion this is one task's condition; the dry-run trace above shows the whole workflow."
+/>
+
+That's the difference between trust and faith. You don't have faith in the model. You dry-ran the workflow on real data, watched the trace, ramped it to 10% of traffic, and you can roll it back in one API call.
+
+## One runtime, not a sprawl of microservices
+
+Remember the discount logic that has to live in more than one service? Here's the part that fixes it, and it's the opposite of "ship a library to every team."
+
+**Before**, every piece of business logic is its own service to build, deploy, and operate:
+
+```text
+                    ┌──────────────┐
+               ┌───▶│ Pricing Svc  │───▶ DB
+┌──────────┐   │    ├──────────────┤
+│   API    │───┼───▶│ Fraud Svc    │───▶ Redis
+│ Gateway  │   │    ├──────────────┤
+└──────────┘   ├───▶│ Routing Svc  │───▶ Kafka
+               │    ├──────────────┤
+               └───▶│ Notif. Svc   │───▶ SMTP
+                    └──────────────┘
+
+4 services × (code + Dockerfile + CI + health checks + metrics + deploy)
+```
+
+**After**, one Orion instance replaces all four:
+
+```text
+              ┌────────────────────────────────────┐
+              │               Orion                │
+┌──────────┐  │  Channel /pricing → workflow ──────┼─▶ DB
+│ Clients  │─▶│  Channel /fraud   → workflow ──────┼─▶ Redis
+└──────────┘  │  Channel /routing → workflow ──────┼─▶ Kafka
+              │  Channel /notify  → workflow ──────┼─▶ SMTP
+              │                                    │
+              │  Rate limiting, metrics, health    │
+              │  checks, circuit breakers, logs    │
+              └────────────────────────────────────┘
+
+No API gateway needed. Governance is built in. One binary to deploy.
+```
+
+You get the modularity of microservices with the operational simplicity of a monolith: each channel and workflow is independently versioned, testable, and deployable, but they share one binary and one set of built-in production features. Change one workflow without touching the others. Roll back a single channel without redeploying everything.
+
+And "governance is built in" isn't a slogan, it's a table. Every channel gets these without a line of code, configurable per channel or defaulted:
+
+| Feature | What it does |
+|---------|--------------|
+| **Rate limiting** | Throttle per client or globally (key computed by JSONLogic) |
+| **Timeouts** | Cancel slow workflows, return 504 |
+| **Input validation** | Reject bad requests at the boundary, with header/query/path access |
+| **Backpressure** | Shed load when overwhelmed, return 503 |
+| **Circuit breakers** | Stop cascading failures to external services, auto-recover |
+| **Versioning** | Draft → active → archived, rollout %, instant rollback |
+| **Observability** | Prometheus metrics, structured logs, distributed tracing |
+| **Health checks** | Component-level status with degradation detection |
+| **Deduplication** | Idempotency-key dedup with a retention window |
+| **Response caching** | TTL-based, configurable cache key |
+
+When one workflow needs another, you don't make an HTTP call between services and pay the latency, failure modes, and serialization tax. `channel_call` invokes another channel's workflow **in-process**, a function call, not a network hop, with cycle detection so you can't recurse forever. And reaching out is handled by **connectors**, named, reusable connections to HTTP APIs, PostgreSQL/MySQL/SQLite, Redis, MongoDB, and Kafka, each one wrapped in an automatic circuit breaker, with secrets pulled from `env://` references at startup so production credentials never sit in the saved config.
+
+## Why reach for Orion
+
+If you're the one who has to pick the dependency, here's the short version.
+
+**It's declarative.** A service is a JSON declaration, not a repo. No Dockerfile, no CI pipeline, no deployment manifest per rule. The thing you reviewed is the thing that runs.
+
+**It's governed.** Observability, rate limiting, circuit breakers, timeouts, versioning, and validation are built into every channel. AI-generated workflows get the exact same guarantees as hand-written ones, the platform enforces it.
+
+**It's AI-native.** Validate → draft → dry-run → rollout → rollback is the path, and the MCP server gives a model the full context to land on the first try. The AI does the creative part once; the runtime does the deterministic part forever.
+
+**It's deployable.** A single binary, SQLite by default with zero external dependencies, swap to PostgreSQL or MySQL by changing one URL. `docker run`, `brew install`, or `cargo install`, then it's running. ~6–7K workflow requests/sec on a single instance, *with all that governance on*.
+
+**It's honest about what it isn't.** Orion is not a RETE rule engine like Drools, not Temporal for hours-long stateful jobs, not a full API gateway like Kong, and not a place to run arbitrary compute. It's a runtime for request-response and event-processing business logic, and it says so.
+
+**And it's real.** Apache-2.0, actively maintained, built on datalogic-rs and dataflow-rs, the engines I work on and help shape. It's not a weekend project you're betting your decisioning on.
+
+## Where this leaves us
+
+Go back to that constant from the top, the `18` or the `0.85` buried in an `if`, and the whole service you stood up to hold it. Everything here was about getting both out of your code and into a place where they can actually move.
+
+The logic is data now, a small rule you can store, version, and change without shipping anything. The service around it is a declaration, not a repo, so it comes with observability, rate limiting, retries, and versioning the moment it exists. An AI can write that declaration from a sentence, a human can dry-run it on real data and ramp it cautiously into production, and one runtime runs all of it, at a speed where the rule never shows up in your latency budget. The fight between the product team that needs it today and the engineering team that needs two weeks gets a lot quieter when the change is an API call, not a release.
+
+That's the shift worth taking away. The future of business logic isn't an LLM sitting in your request path answering the same question a million times. It's an LLM writing the service once, a human signing off on the trace, and a deterministic runtime running it a billion times for free.
+
+If any of this landed, go try it. One line gets you a running, governed runtime:
+
+```bash
+docker run -p 8080:8080 ghcr.io/goplasmatic/orion:latest
+# or: brew install GoPlasmatic/tap/orion-server  •  cargo install orion-server
+```
+
+Point your LLM at the Orion CLI's MCP server, describe the service you need, and watch it deploy. The code is open and the docs are at [goplasmatic.github.io/Orion](https://goplasmatic.github.io/Orion/).
+
+That constant never belonged in your code. Neither did the service around it.
