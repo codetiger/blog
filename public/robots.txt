@@ -1,3 +1,3 @@
 User-agent: *
 
-Sitemap: https://codetiger.github.io/blog/sitemap-index.xml
+Sitemap: https://codetiger.in/blog/sitemap-index.xml

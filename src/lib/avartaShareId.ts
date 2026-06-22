@@ -49,7 +49,7 @@ const DEMO_PIGMENT: Record<string, number> = {
 
 // `.AQA` is Avarta's default "look" segment (material + palette). The viewer
 // treats the look as optional, so this just pins the canonical default.
-const AVARTA_URL = 'https://codetiger.github.io/Avarta/#s=';
+const AVARTA_URL = 'https://codetiger.in/avarta/#s=';
 const DEFAULT_LOOK = 'AQA';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';

@@ -45,9 +45,9 @@ After more than a decade, and more recent involvement electronics hobbies with R
 
 Decided to name it after my Godfather, in his memories. I continue with my dream this time with more knowledge and focus. It took me a year (on and off, mostly during weekends) to fully assemble, test and launch the satellite. Here is a series of blogposts from the past related to RaLiSat-1.
 
-1.  [Payload system design](https://codetiger.github.io/blog/ralisat-1-payload-design/)
-2.  [Payload design challenges](https://codetiger.github.io/blog/ralisat-1-payload-design-challenges/)
-3.  [Base station system design](https://codetiger.github.io/blog/ground-station/)
+1.  [Payload system design](/blog/ralisat-1-payload-design/)
+2.  [Payload design challenges](/blog/ralisat-1-payload-design-challenges/)
+3.  [Base station system design](/blog/ground-station/)
 
 Test scenarios include putting it into a freezer to test sub-zero temperatures. Of course, even with max settings my parents refrigerator could only get to -12°C, while the worst case in real-world near space can ready -60°C. I definitely under estimated this to be close to -45°C but it seems to have reached -63°C even at 14 kms altitude.
 

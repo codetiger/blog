@@ -4,10 +4,10 @@ import sitemap from '@astrojs/sitemap';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 
-// Matches the live site layout: https://codetiger.github.io/blog/
+// Matches the live site layout: https://codetiger.in/blog/
 // `site` + `base` keep every post at /blog/<slug>/ so existing URLs are preserved.
 export default defineConfig({
-  site: 'https://codetiger.github.io',
+  site: 'https://codetiger.in',
   base: '/blog',
   trailingSlash: 'ignore',
   integrations: [mdx(), sitemap()],

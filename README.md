@@ -1,7 +1,7 @@
 # Small World
 
 A pure-markdown, component-capable blog built with [Astro](https://astro.build) + MDX,
-deployed to GitHub Pages at <https://codetiger.github.io/blog/>.
+published at <https://codetiger.in/blog/>.
 
 Posts are plain markdown (`.md`); articles that need interactive 3D/canvas use `.mdx`
 and embed components as Astro islands.
@@ -19,7 +19,6 @@ src/
   lib/                site.ts (constants), posts.ts, tags.ts
 public/               favicon.png, robots.txt, assets/ (images, cover, author photo)
 astro.config.mjs      site/base (/blog), mdx, sitemap, redirects, Shiki theme
-.github/workflows/    deploy.yml (GitHub Pages via Actions)
 ```
 
 ## Commands
@@ -62,10 +61,9 @@ from the posts. Pagination page count = `ceil(posts / SITE.pageSize)` (`pageSize
 
 ## Deployment
 
-Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds the site and
-publishes `dist/` to GitHub Pages. The repo's **Settings → Pages → Source** must be set
-to **GitHub Actions** (one-time). `site` + `base: '/blog'` in `astro.config.mjs` keep
-every URL at `https://codetiger.github.io/blog/…`, matching the previous Ghost site.
+`npm run build` produces a static `dist/` that is served at <https://codetiger.in/blog/>.
+`site: 'https://codetiger.in'` + `base: '/blog'` in `astro.config.mjs` keep every URL at
+`https://codetiger.in/blog/…`, matching the previous Ghost site.
 
 ## Notes
 

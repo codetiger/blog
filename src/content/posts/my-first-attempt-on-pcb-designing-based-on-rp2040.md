@@ -6,7 +6,7 @@ tags: ["electronics", "GameTiger", "Game development", "RP2040", "MCU"]
 featureImage: "/blog/assets/images/2024/01/DD65D235-7C22-4354-8437-FEF41B9110C9_1_105_c.jpeg"
 draft: false
 ---
-> In this blog post, we delve further into the fascinating journey of [crafting a retro-style game console entirely from the ground up](https://codetiger.github.io/blog/building-a-retro-style-game-console-in-2022/)—an extension of my previous article.
+> In this blog post, we delve further into the fascinating journey of [crafting a retro-style game console entirely from the ground up](/blog/building-a-retro-style-game-console-in-2022/)—an extension of my previous article.
 
 The initial version was constructed using the RPi Pico as the main board, with additional modules integrated around it. Nevertheless, for the upcoming iteration, I aimed to elevate the intrigue further and opted to create a custom printed circuit board (PCB) specifically tailored for the console.
 
