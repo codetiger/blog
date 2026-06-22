@@ -19,5 +19,8 @@
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
     "three": "^0.184.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }
