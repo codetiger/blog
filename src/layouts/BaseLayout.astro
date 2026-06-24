@@ -24,29 +24,48 @@ const maxw = width === 'home' ? '1080px' : width === 'post' ? '820px' : '700px';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#874efe" />
+    <meta name="theme-color" content="#05090f" />
     <link rel="icon" type="image/png" href={`${base}/favicon.png`} />
     <link rel="alternate" type="application/rss+xml" title="Small World" href={`${base}/rss.xml`} />
     <Seo title={title} description={description} image={image} type={type} published={published} />
+
+    <!-- Shared design system (single source of truth, served at /design-system/ by the
+         aggregator build). One link pulls in tokens.css via its @import. A standalone
+         `npm run dev` won't have /design-system/ — preview via the aggregator build
+         (`./scripts/build.sh && npx serve dist` in website-cicd). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="/design-system/design-system.css" />
+
     <style is:global>
+      /* Re-skin the blog onto the shared design system: the local token NAMES stay,
+         but each now aliases a design-system token, so every component that reads
+         var(--bg / --accent / …) inherits the navy/cyan identity with no edits. These
+         aliases are un-layered, so they win cleanly over the DS @layer rules. */
       :root {
-        --bg: #16171c;
-        --surface: #1d1f26;
-        --surface-2: #23262f;
-        --border: #2a2d36;
-        --fg: #cdd0d7;
-        --heading: #f3f4f7;
-        --muted: #878d99;
-        --accent: #9d7bff;
-        --accent-soft: rgba(157, 123, 255, 0.14);
+        --bg: var(--color-bg);
+        --surface: var(--color-bg-elevated);
+        --surface-2: var(--color-surface-2);
+        --border: var(--color-border);
+        --fg: var(--color-fg-secondary);   /* body copy */
+        --heading: var(--color-fg);
+        --muted: var(--color-muted);
+        --accent: var(--color-accent);     /* cyan — the accent contract */
+        --accent-soft: var(--color-accent-soft);
         --maxw: 700px;
-        --radius: 10px;
+        --radius: var(--radius-xl);         /* 10px */
       }
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
       body {
         margin: 0;
-        font: 17px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family: var(--font-sans);
+        font-size: 17px;
+        line-height: 1.7;
         color: var(--fg);
         background: var(--bg);
         -webkit-font-smoothing: antialiased;
@@ -86,7 +105,7 @@ const maxw = width === 'home' ? '1080px' : width === 'post' ? '820px' : '700px';
         padding: 0.12em 0.4em;
         border-radius: 5px;
         font-size: 0.86em;
-        font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-family: var(--font-mono);
       }
       /* Shiki code blocks (.astro-code) keep their own bg; we add the chrome.
          Exclude .json-highlight so the datalogic playground's own <pre> overlays
@@ -108,7 +127,7 @@ const maxw = width === 'home' ? '1080px' : width === 'post' ? '820px' : '700px';
         padding-top: 1.4rem; padding-bottom: 1.4rem;
         display: flex; align-items: baseline; gap: 0.85rem; flex-wrap: wrap;
       }
-      header.site .brand { font-weight: 700; font-size: 1.15rem; color: var(--heading); }
+      header.site .brand { font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; color: var(--heading); }
       header.site .brand:hover { text-decoration: none; color: var(--accent); }
       header.site nav.top { margin-left: auto; display: flex; gap: 1rem; font-size: 0.9rem; }
       header.site .tagline { color: var(--muted); font-size: 0.85rem; }
